@@ -1,14 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:go_router/go_router.dart';
+import 'package:latlong2/latlong.dart';
 import '../../../../../app/theme/index.dart';
 import '../../../../../core/animations/motion.dart';
 import '../../../../../core/constants/app_constants.dart';
+import '../../../../../core/network/nominatim_service.dart';
 import '../../../../../core/services/location_service.dart';
+import '../../../../../core/utils/geojson_parser.dart';
 import '../../../../../data/repositories/emergency_repository.dart';
 import '../../../../../mock/models.dart';
+import '../../../../../shared/widgets/app_map.dart';
 import '../../../../../shared/widgets/basic_widgets.dart';
+import '../widgets/map_controls.dart';
 import '../widgets/map_view.dart';
 import '../widgets/incidents_bottom_sheet.dart';
+import '../widgets/map_zone_search.dart';
 import '../../../reports/presentation/pages/my_reports_page.dart';
 import '../../../notifications/presentation/pages/notifications_page.dart';
 import '../../../profile/presentation/pages/profile_page.dart';
@@ -22,6 +29,8 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _currentIndex = 0;
+  bool _isMapExpanded = false;
+  GeoSearchResult? _selectedZone;
   final _emergencyRepository = EmergencyRepository();
   late Future<List<Incident>> _incidentsFuture;
   Location _userLocation = const Location(
@@ -31,11 +40,22 @@ class _HomePageState extends State<HomePage> {
     zone: '',
   );
 
+  List<Incident>? _visibleIncidentsSource;
+  GeoSearchResult? _visibleIncidentsZone;
+  List<Incident> _visibleIncidentsCache = const [];
+  final MapController _mapController = MapController();
+
   @override
   void initState() {
     super.initState();
     _incidentsFuture = _emergencyRepository.listMineIncidents();
     _loadUserLocation();
+  }
+
+  @override
+  void dispose() {
+    _mapController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadUserLocation() async {
@@ -60,6 +80,51 @@ class _HomePageState extends State<HomePage> {
     context.push('/report/create');
   }
 
+  void _onToggleMapExpanded() {
+    setState(() => _isMapExpanded = !_isMapExpanded);
+  }
+
+  void _onZoneSelected(GeoSearchResult zone) {
+    setState(() => _selectedZone = zone);
+  }
+
+  void _onZoneCleared() {
+    setState(() => _selectedZone = null);
+  }
+
+  void _onZoomIn() {
+    final camera = _mapController.camera;
+    _mapController.move(camera.center, (camera.zoom + 1).clamp(AppMap.minZoom, AppMap.maxZoom));
+  }
+
+  void _onZoomOut() {
+    final camera = _mapController.camera;
+    _mapController.move(camera.center, (camera.zoom - 1).clamp(AppMap.minZoom, AppMap.maxZoom));
+  }
+
+  /// Incidents visible on the map: all of them, or only those inside the
+  /// selected zone's real geometry (point-in-polygon, not name matching).
+  /// Cached by (source list, zone) so it isn't recomputed on every rebuild.
+  List<Incident> _visibleIncidents(List<Incident> incidents) {
+    if (identical(incidents, _visibleIncidentsSource) &&
+        _visibleIncidentsZone?.key == _selectedZone?.key) {
+      return _visibleIncidentsCache;
+    }
+
+    final geometry = _selectedZone?.geometry;
+    final filtered = (geometry == null || !geometry.isArea)
+        ? incidents
+        : incidents.where((incident) {
+            final point = LatLng(incident.location.latitude, incident.location.longitude);
+            return isPointInZone(point, geometry);
+          }).toList();
+
+    _visibleIncidentsSource = incidents;
+    _visibleIncidentsZone = _selectedZone;
+    _visibleIncidentsCache = filtered;
+    return filtered;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -76,7 +141,11 @@ class _HomePageState extends State<HomePage> {
           ),
         ],
       ),
-      bottomNavigationBar: _buildBottomNavBar(),
+      bottomNavigationBar: AnimatedSize(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeInOut,
+        child: _isMapExpanded ? const SizedBox(width: double.infinity) : _buildBottomNavBar(),
+      ),
     );
   }
 
@@ -84,30 +153,62 @@ class _HomePageState extends State<HomePage> {
     return FutureBuilder<List<Incident>>(
       future: _incidentsFuture,
       builder: (context, snapshot) {
-        final incidents = snapshot.data ?? const <Incident>[];
+        final allIncidents = snapshot.data ?? const <Incident>[];
+        final incidents = _visibleIncidents(allIncidents);
         return Stack(
           children: [
             MapView(
               incidents: incidents,
               onIncidentTap: _onIncidentTap,
               userLocation: _userLocation,
+              isExpanded: _isMapExpanded,
+              onToggleExpand: _onToggleMapExpanded,
+              zone: _selectedZone,
+              mapController: _mapController,
             ),
             SafeArea(
               bottom: false,
               child: Column(
                 children: [
                   Expanded(
-                    child: Align(
-                      alignment: Alignment.topCenter,
-                      child: ListView(
-                        shrinkWrap: true,
-                        physics: const ClampingScrollPhysics(),
-                        children: [_buildTopBar(snapshot, incidents)],
+                    child: IgnorePointer(
+                      ignoring: _isMapExpanded,
+                      child: AnimatedOpacity(
+                        duration: const Duration(milliseconds: 250),
+                        opacity: _isMapExpanded ? 0 : 1,
+                        child: AnimatedSlide(
+                          duration: const Duration(milliseconds: 250),
+                          curve: Curves.easeInOut,
+                          offset: _isMapExpanded ? const Offset(0, -0.1) : Offset.zero,
+                          child: Align(
+                            alignment: Alignment.topCenter,
+                            child: ListView(
+                              shrinkWrap: true,
+                              physics: const ClampingScrollPhysics(),
+                              children: [_buildTopBar(snapshot, incidents)],
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
                   _buildBottomActionBar(),
                 ],
+              ),
+            ),
+            // Last Stack child so it wins hit-testing over the top-bar's
+            // full-width Scrollable above (a ListView always claims its
+            // whole viewport for drag detection, even past its visible
+            // content, so the zoom buttons must sit on a later/topmost
+            // layer to receive taps at all in that region).
+            Positioned(
+              top: 0,
+              right: 0,
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: _topZoomControlsOffset, right: AppSpacing.md),
+                  child: MapZoomControls(onZoomIn: _onZoomIn, onZoomOut: _onZoomOut),
+                ),
               ),
             ),
           ],
@@ -116,15 +217,22 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  static const double _topZoomControlsOffset = 96;
+
   Widget _buildTopBar(AsyncSnapshot<List<Incident>> snapshot, List<Incident> incidents) {
     return Padding(
-      padding: const EdgeInsets.only(top: AppSpacing.sm, bottom: AppSpacing.sm),
+      padding: const EdgeInsets.only(
+        top: AppSpacing.sm,
+        bottom: AppSpacing.sm,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          MapSearchBar(
-            controller: TextEditingController(),
-            onTap: () => context.push('/search'),
+          MapZoneSearchField(
+            selectedZone: _selectedZone,
+            filteredCount: _selectedZone == null ? null : incidents.length,
+            onZoneSelected: _onZoneSelected,
+            onZoneCleared: _onZoneCleared,
             onFilterPressed: _showFilterSheet,
           ),
           const SizedBox(height: AppSpacing.sm),

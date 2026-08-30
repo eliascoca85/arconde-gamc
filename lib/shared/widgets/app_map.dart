@@ -2,11 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../../app/theme/index.dart';
+import '../../../../core/utils/geojson_parser.dart';
 import '../../../../features/map/presentation/widgets/map_markers.dart';
 import '../../../../mock/models.dart';
 import '../../../../shared/widgets/basic_widgets.dart';
 
 class AppMap extends StatelessWidget {
+  static const double minZoom = 10.0;
+  static const double maxZoom = 19.0;
+
   final LatLng center;
   final double zoom;
   final List<Incident> incidents;
@@ -18,6 +22,8 @@ class AppMap extends StatelessWidget {
   final MapController? mapController;
   final Function(LatLng)? onMapTap;
   final List<Marker> Function()? additionalMarkers;
+  final List<GeoPolygonShape> zonePolygons;
+  final List<List<LatLng>> zoneLines;
 
   const AppMap({
     super.key,
@@ -32,6 +38,8 @@ class AppMap extends StatelessWidget {
     this.mapController,
     this.onMapTap,
     this.additionalMarkers,
+    this.zonePolygons = const [],
+    this.zoneLines = const [],
   });
 
   @override
@@ -41,8 +49,8 @@ class AppMap extends StatelessWidget {
       options: MapOptions(
         initialCenter: center,
         initialZoom: zoom,
-        minZoom: 10.0,
-        maxZoom: 19.0,
+        minZoom: minZoom,
+        maxZoom: maxZoom,
         interactionOptions: InteractionOptions(
           flags: interactive ? InteractiveFlag.all : InteractiveFlag.none,
         ),
@@ -57,12 +65,42 @@ class AppMap extends StatelessWidget {
           maxZoom: 19,
           tileProvider: NetworkTileProvider(),
         ),
+        if (zonePolygons.isNotEmpty) _buildZonePolygonsLayer(),
+        if (zoneLines.isNotEmpty) _buildZoneLinesLayer(),
         if (userLocation != null && showUserLocation)
           _buildUserLocationLayer(userLocation!),
         _buildIncidentMarkersLayer(),
         if (additionalMarkers != null)
           MarkerLayer(markers: additionalMarkers!()),
       ],
+    );
+  }
+
+  Widget _buildZonePolygonsLayer() {
+    return PolygonLayer(
+      polygons: zonePolygons
+          .map((shape) => Polygon(
+                points: shape.exterior,
+                holePointsList: shape.holes.isEmpty ? null : shape.holes,
+                color: AppColors.secondaryTeal.withValues(alpha: 0.12),
+                borderColor: AppColors.secondaryTeal,
+                borderStrokeWidth: 2.5,
+              ))
+          .toList(),
+    );
+  }
+
+  Widget _buildZoneLinesLayer() {
+    return PolylineLayer(
+      polylines: zoneLines
+          .map((points) => Polyline(
+                points: points,
+                color: AppColors.secondaryTeal,
+                strokeWidth: 4,
+                borderColor: AppColors.surfacePrimary,
+                borderStrokeWidth: 1.5,
+              ))
+          .toList(),
     );
   }
 
