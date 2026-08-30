@@ -1,0 +1,283 @@
+@baseUrl = https://sos-24-gamc.vercel.app
+@contentType = application/json
+
+### ============================================================
+### 🔐 1. AUTENTICACIÓN
+### ============================================================
+
+### 1. Obtener Token CSRF (Ejecutar primero)
+# @name getCsrf
+GET {{baseUrl}}/api/auth/csrf
+
+### 2. Iniciar sesión como Administrador Central GAMC
+# @name loginAdmin
+POST {{baseUrl}}/api/auth/callback/institution
+Content-Type: {{contentType}}
+
+{
+  "email": "admin@gamc.bo",
+  "password": "Admin1234",
+  "csrfToken": "{{getCsrf.response.body.csrfToken}}"
+}
+
+### 3. Iniciar sesión como Operador Central GAMC
+# @name loginOperador
+POST {{baseUrl}}/api/auth/callback/institution
+Content-Type: {{contentType}}
+
+{
+  "email": "operador@gamc.bo",
+  "password": "Oper12345",
+  "csrfToken": "{{getCsrf.response.body.csrfToken}}"
+}
+
+### 4. Iniciar sesión como Institución Bomberos
+# @name loginBomberos
+POST {{baseUrl}}/api/auth/callback/institution
+Content-Type: {{contentType}}
+
+{
+  "email": "admin@bomberos.bo",
+  "password": "Inst12345",
+  "csrfToken": "{{getCsrf.response.body.csrfToken}}"
+}
+
+### 5. Iniciar sesión como Ciudadano (PWA)
+# @name loginCiudadano
+POST {{baseUrl}}/api/auth/callback/citizen
+Content-Type: {{contentType}}
+
+{
+  "phoneNumber": "70000010",
+  "password": "Ciudadano123",
+  "csrfToken": "{{getCsrf.response.body.csrfToken}}"
+}
+
+### ============================================================
+### 🚨 2. EMERGENCIAS (DASHBOARD GAMC / CENTRAL)
+### ============================================================
+
+### Listar todas las emergencias (con paginación y filtros)
+GET {{baseUrl}}/api/dashboard/emergencies?page=1&pageSize=20
+
+### Filtrar emergencias activas y críticas
+GET {{baseUrl}}/api/dashboard/emergencies?active=true&priority=CRITICA
+
+### Buscar emergencia por código
+GET {{baseUrl}}/api/dashboard/emergencies?search=SOS-260829-0001
+
+### Obtener mapa de emergencias activas (coordenadas para Google Maps)
+GET {{baseUrl}}/api/dashboard/emergencies/map
+
+### Registrar emergencia manualmente (Operador Central)
+POST {{baseUrl}}/api/dashboard/emergencies
+Content-Type: {{contentType}}
+
+{
+  "description": "Colisión frontal entre minibús y vehículo particular con heridos",
+  "priority": "CRITICA",
+  "FK_emergencyType": 1,
+  "latitude": -17.3882,
+  "longitude": -66.1954,
+  "address": "Av. Blanco Galindo Km 4.5, acera sur",
+  "affectedPersons": 4,
+  "trappedPersons": 1
+}
+
+### Obtener detalle / expediente completo de una emergencia
+GET {{baseUrl}}/api/dashboard/emergencies/1
+
+### Actualizar datos de la emergencia
+PUT {{baseUrl}}/api/dashboard/emergencies/1
+Content-Type: {{contentType}}
+
+{
+  "priority": "CRITICA",
+  "description": "Colisión frontal con 4 heridos atendidos por SME",
+  "affectedPersons": 4,
+  "status": "EN_ATENCION"
+}
+
+### ============================================================
+### 🚑 3. DESPACHO, ASIGNACIONES Y RASTREO GPS
+### ============================================================
+
+### Listar todos los despachos activos
+GET {{baseUrl}}/api/dashboard/dispatch?status=SOLICITADA,ACEPTADA,EN_CAMINO,EN_SITIO
+
+### Obtener detalle de una asignación específica
+GET {{baseUrl}}/api/dashboard/dispatch/1
+
+### Unidad Acepta Asignación (Institución)
+POST {{baseUrl}}/api/dashboard/dispatch/1/accept
+Content-Type: {{contentType}}
+
+{}
+
+### Unidad Sale hacia el Incidente (EN_CAMINO)
+POST {{baseUrl}}/api/dashboard/dispatch/1/depart
+Content-Type: {{contentType}}
+
+{}
+
+### Unidad Llega al Sitio del Incidente (EN_SITIO)
+POST {{baseUrl}}/api/dashboard/dispatch/1/arrive
+Content-Type: {{contentType}}
+
+{}
+
+### Unidad Finaliza Atención del Incidente (FINALIZADA)
+POST {{baseUrl}}/api/dashboard/dispatch/1/complete
+Content-Type: {{contentType}}
+
+{}
+
+### Enviar Ping GPS en tiempo real de la Unidad en camino
+POST {{baseUrl}}/api/dashboard/dispatch/1/tracking
+Content-Type: {{contentType}}
+
+{
+  "latitude": -17.3910,
+  "longitude": -66.1820,
+  "speed": 54.2,
+  "heading": 285.5
+}
+
+### Consultar ruta y puntos GPS de la asignación
+GET {{baseUrl}}/api/dashboard/dispatch/1/tracking
+
+### ============================================================
+### 💬 4. SALA DE CRISIS Y CHAT CENTRALIZADO
+### ============================================================
+
+### Obtener sala de crisis vinculada a la emergencia
+GET {{baseUrl}}/api/dashboard/emergencies/1/room
+
+### Obtener mensajes del chat de la sala
+GET {{baseUrl}}/api/dashboard/emergencies/1/messages
+
+### Enviar mensaje a la sala de crisis (Operador/Unidad)
+POST {{baseUrl}}/api/dashboard/emergencies/1/messages
+Content-Type: {{contentType}}
+
+{
+  "message": "Unidad AMB-03 en el punto, realizando estabilización de pacientes.",
+  "messageType": "TEXT"
+}
+
+### Listar evidencias multimedia de la emergencia
+GET {{baseUrl}}/api/dashboard/emergencies/1/evidences
+
+### Listar reportes de avance de la emergencia
+GET {{baseUrl}}/api/dashboard/emergencies/1/progress-reports
+
+### ============================================================
+### 📱 5. CIUDADANO (PWA MÓVIL)
+### ============================================================
+
+### Consultar perfil del ciudadano autenticado
+GET {{baseUrl}}/api/citizen/profile
+
+### Actualizar perfil del ciudadano
+PUT {{baseUrl}}/api/citizen/profile
+Content-Type: {{contentType}}
+
+{
+  "firstName": "Pedro",
+  "lastName": "Gómez Vargas",
+  "email": "pedro.gomez.updated@gmail.com"
+}
+
+### Reportar Emergencia (Botón SOS con GPS)
+POST {{baseUrl}}/api/citizen/emergency/report
+Content-Type: {{contentType}}
+
+{
+  "description": "Incendio de pastizal con riesgo de propagación a viviendas",
+  "latitude": -17.3750,
+  "longitude": -66.1680,
+  "address": "Av. Circunvalación norte, cerca al puente"
+}
+
+### Historial de emergencias reportadas por el ciudadano
+GET {{baseUrl}}/api/citizen/emergencies
+
+### Detalle de la emergencia desde la app del ciudadano
+GET {{baseUrl}}/api/citizen/emergencies/1
+
+### Mensajes del chat ciudadano
+GET {{baseUrl}}/api/citizen/emergencies/1/messages
+
+### Enviar mensaje desde la app del ciudadano
+POST {{baseUrl}}/api/citizen/emergencies/1/messages
+Content-Type: {{contentType}}
+
+{
+  "message": "El humo está aumentando, necesitamos bomberos urgente."
+}
+
+### Directorio de números de emergencia institucional
+GET {{baseUrl}}/api/citizen/emergency-numbers
+
+### Bandeja de notificaciones del ciudadano
+GET {{baseUrl}}/api/citizen/notifications
+
+### ============================================================
+### 🏢 6. INSTITUCIONES, UNIDADES Y CATÁLOGOS
+### ============================================================
+
+### Listar instituciones
+GET {{baseUrl}}/api/dashboard/institutions
+
+### Listar subinstituciones / dependencias policiales o bases
+GET {{baseUrl}}/api/dashboard/subinstitutions
+
+### Listar unidades operativas (patrullas, ambulancias, bomberos)
+GET {{baseUrl}}/api/dashboard/units
+
+### Obtener última posición GPS de todas las unidades
+GET {{baseUrl}}/api/dashboard/units/positions
+
+### Catálogo de tipos de emergencia
+GET {{baseUrl}}/api/dashboard/emergency-types
+
+### Catálogo de tipos de institución
+GET {{baseUrl}}/api/dashboard/institution-types
+
+### Catálogo de tipos de recursos
+GET {{baseUrl}}/api/dashboard/resource-types
+
+### ============================================================
+### 👥 7. USUARIOS, PRIVILEGIOS Y CIUDADANOS
+### ============================================================
+
+### Listar usuarios del sistema
+GET {{baseUrl}}/api/dashboard/users
+
+### Listar privilegios / roles
+GET {{baseUrl}}/api/dashboard/privileges
+
+### Listar ciudadanos registrados
+GET {{baseUrl}}/api/citizens
+
+### Consultar expediente de un ciudadano
+GET {{baseUrl}}/api/citizens/1
+
+### ============================================================
+### 📊 8. MÉTRICAS, INTELIGENCIA ARTIFICIAL Y REPORTES
+### ============================================================
+
+### Métricas globales del dashboard (Emergencias activas, tiempos, etc.)
+GET {{baseUrl}}/api/dashboard/stats
+
+### Resumen general de reportes estadísticos
+GET {{baseUrl}}/api/dashboard/reports/overview
+
+### Sesiones de auditoría de IA
+GET {{baseUrl}}/api/dashboard/ai/sessions
+
+### Token temporal para sesión de voz WebRTC
+POST {{baseUrl}}/api/realtime-token
+Content-Type: {{contentType}}
+
+{}

@@ -1,0 +1,730 @@
+// ============================================================
+// PRISMA SCHEMA - SISTEMA SOS-24 / EMERGENCIA 24/7 CON AI
+// VERSIÓN COMPLETA PARA PRODUCCIÓN
+// REDIRECCIÓN DE IA A CANAL ÚNICO PARA MÚLTIPLES REPORTANTES
+// RASTREO GPS Y ESCALADO EN CADENA
+// ============================================================
+
+
+// ============================================================
+// CONFIGURACIÓN DE PRISMA
+// ============================================================
+
+generator client {
+  provider = "prisma-client"            // Generador nuevo de Prisma 7 (cliente Rust-free).
+  output   = "../src/generated/prisma"  // Salida obligatoria en v7: el cliente vive dentro del proyecto.
+}
+
+datasource db {
+  provider = "sqlite" // Motor de base de datos utilizado por el sistema.
+}
+
+
+// ============================================================
+// PRIVILEGIOS DEL SISTEMA
+// ============================================================
+
+model tbprivileges {
+  PK_privilege  Int        @id @default(autoincrement()) // Clave primaria del privilegio.
+  privilege     String     @unique // Nombre descriptivo del privilegio o rol.
+  privilegeCode String     @unique // Código único utilizado para identificar el privilegio.
+  privilegeType String     // Tipo de privilegio: GAMC o INSTITUTION.
+  description   String?    // Descripción detallada del privilegio.
+  createdAt     DateTime   @default(now()) // Fecha y hora en que se creó el privilegio.
+  tbusers       tbusers[]  // Relación con los usuarios que poseen este privilegio.
+}
+
+
+// ============================================================
+// CIUDADANOS
+// ============================================================
+
+model tbcitizens {
+  PK_citizen         Int                       @id @default(autoincrement()) // Clave primaria del ciudadano.
+  firstName          String                    // Nombres del ciudadano.
+  lastName           String                    // Apellidos del ciudadano.
+  CI                 String?                   @unique // Número de cédula de identidad del ciudadano.
+  phoneNumber        String                    @unique // Número telefónico utilizado para identificar y contactar al ciudadano.
+  email              String?                   @unique // Correo electrónico del ciudadano.
+  password           String?                   // Contraseña del ciudadano para autenticación en la aplicación.
+  profileImage       String?                   // Ruta o URL de la imagen de perfil del ciudadano.
+  status             Boolean                   @default(true) // Estado del ciudadano: true activo, false inactivo.
+  createdAt          DateTime                  @default(now()) // Fecha y hora de registro del ciudadano.
+  updatedAt          DateTime                  @updatedAt // Fecha y hora de la última actualización del ciudadano.
+  actionHistory      Json?                     // Registro de acciones realizadas por el ciudadano en formato JSON.
+  tbdevices          tbdevices?                // Relación uno a uno con el dispositivo del ciudadano.
+  tbemergencies      tbemergencies[]           // Relación con las emergencias donde el ciudadano es reportante principal.
+  tbemergencyreports tbemergencyreports[]      // Relación con los reportes individuales realizados por el ciudadano.
+  tbchatmessages     tbchatmessages[]          // Relación con los mensajes enviados por el ciudadano.
+  tbroommembers      tbemergencyroommembers[]  // Relación con las salas de emergencia donde participa el ciudadano.
+  tbevidences        tbevidences[]             // Relación con las evidencias cargadas por el ciudadano.
+  tbnotifications    tbnotifications[]         // Relación con las notificaciones recibidas por el ciudadano.
+  tbaisessions       tbaisessions[]            // Relación con las sesiones de interacción con la inteligencia artificial.
+}
+
+
+// ============================================================
+// TIPOS DE INSTITUCIÓN
+// ============================================================
+
+model tbinstitutiontypes {
+  PK_institutionType Int              @id @default(autoincrement()) // Clave primaria del tipo de institución.
+  name               String           // Nombre del tipo de institución.
+  code               String           @unique // Código único del tipo de institución.
+  description        String?          // Descripción del tipo de institución.
+  status             Boolean          @default(true) // Estado del tipo de institución: true activo, false inactivo.
+  createdAt          DateTime         @default(now()) // Fecha y hora de creación del registro.
+  actionHistory      Json?            // Historial de acciones relacionadas con el registro.
+  tbinstitutions     tbinstitutions[] // Relación con las instituciones pertenecientes a este tipo.
+}
+
+
+// ============================================================
+// INSTITUCIONES
+// ============================================================
+
+model tbinstitutions {
+  PK_institution             Int                          @id @default(autoincrement()) // Clave primaria de la institución.
+  FK_institutionType        Int                          // Clave foránea que identifica el tipo de institución.
+  name                       String                       // Nombre oficial de la institución.
+  acronym                    String?                      // Sigla o acrónimo de la institución.
+  phoneNumber                String?                      // Número telefónico institucional.
+  email                      String?                      // Correo electrónico institucional.
+  address                    String?                      // Dirección física de la institución.
+  latitude                   Float?                       // Latitud geográfica de la institución.
+  longitude                  Float?                       // Longitud geográfica de la institución.
+  status                     Boolean                      @default(true) // Estado de la institución: true activa, false inactiva.
+  createdAt                  DateTime                     @default(now()) // Fecha y hora de creación de la institución.
+  updatedAt                  DateTime                     @updatedAt // Fecha y hora de la última actualización.
+  actionHistory              Json?                        // Historial de acciones realizadas sobre la institución.
+  tbinstitutiontypes         tbinstitutiontypes           @relation(fields: [FK_institutionType], references: [PK_institutionType]) // Relación con el tipo de institución.
+  tbsubinstitutions          tbsubinstitutions[]          // Relación con las dependencias o subinstituciones.
+  tbusers                    tbusers[]                    // Relación con los usuarios de la institución.
+  tbunits                    tbunits[]                    // Relación con las unidades de respuesta de la institución.
+  tbemergencyassignments     tbemergencyassignments[]     // Relación con las asignaciones de emergencias.
+  tbinstitutionservices      tbinstitutionservices[]      // Relación con las capacidades o servicios de la institución.
+  tbemergencydestinations    tbemergencydestinations[]    // Relación con los destinos registrados por la institución.
+  tbemergencyprogressreports tbemergencyprogressreports[] // Relación con los reportes de avance realizados por la institución.
+  tbchatmessages             tbchatmessages[]             // Relación con los mensajes enviados desde la institución.
+  tbroommembers              tbemergencyroommembers[]     // Relación con las salas de emergencia donde participa la institución.
+
+  @@index([FK_institutionType]) // Índice para acelerar las búsquedas por tipo de institución.
+}
+
+
+// ============================================================
+// DEPENDENCIAS / SUBINSTITUCIONES
+// EPIs, MÓDULOS, BASES, ETC.
+// ============================================================
+
+model tbsubinstitutions {
+  PK_subinstitution      Int                      @id @default(autoincrement()) // Clave primaria de la subinstitución.
+  FK_institution         Int                      // Clave foránea de la institución a la que pertenece.
+  name                   String                   // Nombre de la subinstitución o dependencia.
+  code                   String?                  // Código identificador de la subinstitución.
+  phoneNumber            String?                  // Número telefónico de la subinstitución.
+  email                  String?                  // Correo electrónico de la subinstitución.
+  address                String?                  // Dirección física de la subinstitución.
+  latitude               Float?                   // Latitud geográfica de la subinstitución.
+  longitude              Float?                   // Longitud geográfica de la subinstitución.
+  status                 Boolean                  @default(true) // Estado de la subinstitución: true activa, false inactiva.
+  createdAt              DateTime                 @default(now()) // Fecha y hora de creación.
+  updatedAt              DateTime                 @updatedAt // Fecha y hora de la última actualización.
+  actionHistory          Json?                    // Historial de acciones realizadas sobre la subinstitución.
+  tbinstitutions         tbinstitutions           @relation(fields: [FK_institution], references: [PK_institution]) // Relación con la institución principal.
+  tbusers                tbusers[]                // Relación con los usuarios asignados a la subinstitución.
+  tbunits                tbunits[]                // Relación con las unidades pertenecientes a la subinstitución.
+  tbemergencyassignments tbemergencyassignments[] // Relación con las asignaciones realizadas desde la subinstitución.
+
+  @@index([FK_institution]) // Índice para búsquedas por institución.
+}
+
+
+// ============================================================
+// USUARIOS DEL SISTEMA
+// GAMC U OPERADORES DE INSTITUCIONES
+// ============================================================
+
+model tbusers {
+  PK_user                    Int                          @id @default(autoincrement()) // Clave primaria del usuario.
+  FK_privilege               Int                          // Clave foránea del privilegio asignado al usuario.
+  FK_institution             Int?                         // Clave foránea de la institución a la que pertenece.
+  FK_subinstitution          Int?                         // Clave foránea de la subinstitución a la que pertenece.
+  firstName                  String                       // Nombres del usuario.
+  lastName                   String                       // Apellidos del usuario.
+  phoneNumber                String?                      // Número telefónico del usuario.
+  email                      String                       @unique // Correo electrónico utilizado para iniciar sesión.
+  password                   String                       // Contraseña cifrada del usuario.
+  status                     Boolean                      @default(true) // Estado del usuario: true activo, false inactivo.
+  createdAt                  DateTime                     @default(now()) // Fecha y hora de creación del usuario.
+  updatedAt                  DateTime                     @updatedAt // Fecha y hora de última actualización del usuario.
+  actionHistory              Json?                        // Historial de acciones realizadas por el usuario.
+  tbprivileges               tbprivileges                 @relation(fields: [FK_privilege], references: [PK_privilege]) // Relación con el privilegio asignado.
+  tbinstitutions             tbinstitutions?              @relation(fields: [FK_institution], references: [PK_institution]) // Relación con la institución del usuario.
+  tbsubinstitutions          tbsubinstitutions?           @relation(fields: [FK_subinstitution], references: [PK_subinstitution]) // Relación con la subinstitución del usuario.
+  tbusersdevices             tbusersdevices?              // Relación uno a uno con el dispositivo del usuario.
+  tbnotifications            tbnotifications[]            // Relación con las notificaciones recibidas por el usuario.
+  tbemergencystatushistory   tbemergencystatushistory[]   // Relación con el historial de estados de emergencias.
+  tbevidences                tbevidences[]                // Relación con las evidencias cargadas por el usuario.
+  tbemergencyprogressreports tbemergencyprogressreports[] // Relación con los reportes de avance realizados por el usuario.
+  tbchatmessages             tbchatmessages[]             // Relación con los mensajes enviados por el usuario.
+  tbroommembers              tbemergencyroommembers[]     // Relación con las salas de emergencia donde participa el usuario.
+
+  @@index([FK_privilege]) // Índice para búsquedas por privilegio.
+  @@index([FK_institution]) // Índice para búsquedas por institución.
+  @@index([FK_subinstitution]) // Índice para búsquedas por subinstitución.
+}
+
+
+// ============================================================
+// DISPOSITIVOS DE CIUDADANOS
+// PUSH NOTIFICATIONS
+// ============================================================
+
+model tbdevices {
+  PK_device   Int        @id @default(autoincrement()) // Clave primaria del dispositivo.
+  FK_citizen  Int        @unique // Clave foránea del ciudadano propietario del dispositivo.
+  pushToken   String?    // Token utilizado para enviar notificaciones push.
+  device      Json       // Información técnica del dispositivo almacenada en formato JSON.
+  createdAt   DateTime   @default(now()) // Fecha y hora de registro del dispositivo.
+  updatedAt   DateTime   @updatedAt // Fecha y hora de última actualización.
+  tbcitizens  tbcitizens @relation(fields: [FK_citizen], references: [PK_citizen]) // Relación con el ciudadano propietario.
+}
+
+
+// ============================================================
+// DISPOSITIVOS DE USUARIOS DEL SISTEMA
+// ============================================================
+
+model tbusersdevices {
+  PK_device Int      @id @default(autoincrement()) // Clave primaria del dispositivo.
+  FK_user   Int      @unique // Clave foránea del usuario propietario del dispositivo.
+  pushToken String?  // Token utilizado para enviar notificaciones push.
+  device    Json     // Información técnica del dispositivo almacenada en formato JSON.
+  createdAt DateTime @default(now()) // Fecha y hora de registro del dispositivo.
+  updatedAt DateTime @updatedAt // Fecha y hora de última actualización.
+  tbusers   tbusers  @relation(fields: [FK_user], references: [PK_user]) // Relación con el usuario propietario.
+}
+
+
+// ============================================================
+// TIPOS DE RECURSOS
+// ============================================================
+
+model tbresourcetypes {
+  PK_resourceType         Int                       @id @default(autoincrement()) // Clave primaria del tipo de recurso.
+  name                    String                    // Nombre del tipo de recurso.
+  code                    String                    @unique // Código único del tipo de recurso.
+  description             String?                   // Descripción del tipo de recurso.
+  status                  Boolean                   @default(true) // Estado del tipo de recurso.
+  createdAt               DateTime                  @default(now()) // Fecha y hora de creación.
+  actionHistory           Json?                     // Historial de acciones relacionadas con el recurso.
+  tbunits                 tbunits[]                 // Relación con las unidades que utilizan este tipo de recurso.
+  tbemergencyrequirements tbemergencyrequirements[] // Relación con los requerimientos de emergencia.
+  tbinstitutionservices   tbinstitutionservices[]   // Relación con las capacidades de instituciones.
+}
+
+
+// ============================================================
+// CAPACIDADES DE LAS INSTITUCIONES
+// ============================================================
+
+model tbinstitutionservices {
+  PK_institutionService Int             @id @default(autoincrement()) // Clave primaria del servicio o capacidad institucional.
+  FK_institution        Int             // Clave foránea de la institución.
+  FK_resourceType       Int             // Clave foránea del tipo de recurso que puede proporcionar.
+  status                Boolean         @default(true) // Estado de disponibilidad de esta capacidad.
+  createdAt             DateTime        @default(now()) // Fecha y hora de creación.
+  actionHistory         Json?           // Historial de acciones relacionadas con la capacidad.
+  tbinstitutions        tbinstitutions  @relation(fields: [FK_institution], references: [PK_institution]) // Relación con la institución.
+  tbresourcetypes       tbresourcetypes @relation(fields: [FK_resourceType], references: [PK_resourceType]) // Relación con el tipo de recurso.
+
+  @@unique([FK_institution, FK_resourceType]) // Evita registrar dos veces el mismo recurso para una institución.
+  @@index([FK_institution]) // Índice para búsquedas por institución.
+  @@index([FK_resourceType]) // Índice para búsquedas por tipo de recurso.
+}
+
+
+// ============================================================
+// UNIDADES DE RESPUESTA
+// ============================================================
+
+model tbunits {
+  PK_unit                Int                      @id @default(autoincrement()) // Clave primaria de la unidad de respuesta.
+  FK_institution         Int                      // Clave foránea de la institución responsable de la unidad.
+  FK_subinstitution      Int?                     // Clave foránea de la subinstitución a la que pertenece la unidad.
+  FK_resourceType        Int                      // Clave foránea del tipo de recurso representado por la unidad.
+  unitCode               String                   @unique // Código único de identificación de la unidad.
+  unitName               String                   // Nombre descriptivo de la unidad.
+  phoneNumber            String?                  // Número telefónico de contacto de la unidad.
+  status                 String                   // Estado operativo de la unidad. Valores: DISPONIBLE, EN_CAMINO, EN_SITIO, OCUPADA, FUERA_DE_SERVICIO.
+  isAvailable            Boolean                  @default(true) // Indica si la unidad está disponible para ser asignada.
+  isActive               Boolean                  @default(true) // Indica si la unidad está habilitada dentro del sistema.
+  createdAt              DateTime                 @default(now()) // Fecha y hora de creación de la unidad.
+  updatedAt              DateTime                 @updatedAt // Fecha y hora de última actualización.
+  actionHistory          Json?                    // Historial de acciones realizadas sobre la unidad.
+  tbinstitutions         tbinstitutions           @relation(fields: [FK_institution], references: [PK_institution]) // Relación con la institución responsable.
+  tbsubinstitutions      tbsubinstitutions?       @relation(fields: [FK_subinstitution], references: [PK_subinstitution]) // Relación con la subinstitución.
+  tbresourcetypes        tbresourcetypes          @relation(fields: [FK_resourceType], references: [PK_resourceType]) // Relación con el tipo de recurso.
+  tbunitlocations        tbunitlocations[]        // Historial de ubicaciones de la unidad.
+  tbemergencyassignments tbemergencyassignments[] // Asignaciones de emergencias de la unidad.
+  tbassignmenttracking   tbassignmenttracking[]   // Registros de rastreo GPS de la unidad.
+  tbchatmessages         tbchatmessages[]         // Mensajes enviados desde la unidad.
+  tbroommembers          tbemergencyroommembers[] // Salas de emergencia donde participa la unidad.
+
+  @@index([FK_institution]) // Índice para búsquedas por institución.
+  @@index([FK_resourceType]) // Índice para búsquedas por tipo de recurso.
+  @@index([isAvailable, isActive]) // Índice para localizar rápidamente unidades disponibles y activas.
+}
+
+
+// ============================================================
+// TIPOS DE EMERGENCIA
+// CLASIFICACIÓN INFORMATIVA
+// ============================================================
+
+model tbemergencytypes {
+  PK_emergencyType Int             @id @default(autoincrement()) // Clave primaria del tipo de emergencia.
+  name             String          // Nombre del tipo de emergencia.
+  code             String          @unique // Código único del tipo de emergencia.
+  description      String?         // Descripción del tipo de emergencia.
+  status           Boolean         @default(true) // Estado del tipo de emergencia.
+  createdAt        DateTime        @default(now()) // Fecha y hora de creación.
+  actionHistory    Json?           // Historial de acciones relacionadas con el tipo.
+  tbemergencies    tbemergencies[] // Relación con las emergencias clasificadas con este tipo.
+}
+
+
+// ============================================================
+// EMERGENCIAS
+// ENTIDAD CENTRAL Y UNIFICADA
+// ============================================================
+
+model tbemergencies {
+  PK_emergency               Int                          @id @default(autoincrement()) // Clave primaria de la emergencia.
+  FK_citizen                 Int?                         // Ciudadano principal o primer reportante de la emergencia.
+  FK_emergencyType           Int?                         // Tipo de emergencia identificado o clasificado.
+  FK_parentEmergency          Int?                         // Emergencia principal a la que se vincula este registro cuando existe duplicidad.
+  emergencyCode              String                       @unique // Código único y visible de la emergencia.
+  priority                   String                       // Prioridad determinada para la emergencia. Valores: BAJA, MEDIA, ALTA, CRITICA.
+  status                     String                       // Estado actual de la emergencia. Valores: REPORTADA, EN_ANALISIS, CLASIFICADA, ASIGNADA, EN_ATENCION, RESUELTA, FALSA_ALARMA, CANCELADA, AGRUPADA_DUPLICADA.
+  isMainEmergency            Boolean                      @default(true) // Indica si esta emergencia representa el caso principal.
+  reportCount                Int                          @default(1) // Cantidad de reportes ciudadanos vinculados al mismo caso.
+  description                String?                      // Descripción general de la emergencia.
+  affectedPersons            Int?                         // Cantidad estimada de personas afectadas.
+  affectedAnimals            Int?                         // Cantidad estimada de animales afectados.
+  trappedPersons             Int?                         // Cantidad estimada de personas atrapadas.
+  missingPersons             Int?                         // Cantidad estimada de personas desaparecidas.
+  reportedAt                 DateTime                     @default(now()) // Fecha y hora en que fue reportada la emergencia.
+  acceptedAt                 DateTime?                    // Fecha y hora en que la emergencia fue aceptada.
+  resolvedAt                 DateTime?                    // Fecha y hora en que la emergencia fue resuelta.
+  createdAt                  DateTime                     @default(now()) // Fecha y hora de creación del registro.
+  updatedAt                  DateTime                     @updatedAt // Fecha y hora de la última modificación.
+  actionHistory              Json?                        // Historial general de acciones de la emergencia.
+  tbcitizens                 tbcitizens?                  @relation(fields: [FK_citizen], references: [PK_citizen]) // Relación con el ciudadano principal.
+  tbemergencytypes           tbemergencytypes?            @relation(fields: [FK_emergencyType], references: [PK_emergencyType]) // Relación con el tipo de emergencia.
+  parentEmergency            tbemergencies?               @relation("EmergencyGroup", fields: [FK_parentEmergency], references: [PK_emergency]) // Relación con la emergencia padre cuando existe agrupación.
+  childEmergencies           tbemergencies[]              @relation("EmergencyGroup") // Emergencias hijas vinculadas a esta emergencia principal.
+  tbemergencyreports         tbemergencyreports[]         // Reportes individuales asociados a la emergencia.
+  tbemergencylocations       tbemergencylocations[]       // Ubicaciones registradas para la emergencia.
+  tbcalls                    tbcalls[]                    // Llamadas relacionadas con la emergencia.
+  tbemergencyroom            tbemergencyrooms?            // Sala de crisis asociada a la emergencia.
+  tbevidences                tbevidences[]                // Evidencias multimedia asociadas.
+  tbaianalyses               tbaianalyses[]               // Análisis realizados por la inteligencia artificial.
+  tbemergencyrequirements   tbemergencyrequirements[]   // Recursos requeridos para atender la emergencia.
+  tbemergencyassignments     tbemergencyassignments[]     // Asignaciones de instituciones y unidades.
+  tbemergencystatushistory   tbemergencystatushistory[]   // Historial de cambios de estado.
+  tbemergencyprogressreports tbemergencyprogressreports[] // Reportes de progreso y evolución del caso.
+  tbnotifications            tbnotifications[]            // Notificaciones relacionadas con la emergencia.
+  tbemergencydestinations    tbemergencydestinations[]    // Destinos asociados a la emergencia.
+  tbaisessions               tbaisessions[]               // Sesiones de IA vinculadas a la emergencia.
+
+  @@index([FK_citizen]) // Índice para búsquedas por ciudadano.
+  @@index([FK_emergencyType]) // Índice para búsquedas por tipo de emergencia.
+  @@index([FK_parentEmergency]) // Índice para búsquedas de emergencias agrupadas.
+  @@index([status]) // Índice para búsquedas por estado.
+  @@index([priority]) // Índice para búsquedas por prioridad.
+  @@index([reportedAt]) // Índice para búsquedas por fecha de reporte.
+}
+
+
+// ============================================================
+// SESIONES DE INTERACCIÓN DE IA CON EL CIUDADANO
+// ============================================================
+
+model tbaisessions {
+  PK_aiSession  Int            @id @default(autoincrement()) // Clave primaria de la sesión de inteligencia artificial.
+  FK_citizen    Int            // Ciudadano que inició la interacción con la IA.
+  FK_emergency  Int?           // Emergencia a la que fue vinculada la sesión, si corresponde.
+  sessionStatus String         // Estado actual de la sesión de IA. Valores: INICIADA, VINCULANDO_CASO, REDIRIGIDO_A_CANAL, FINALIZADA.
+  initialIntent String?        // Intención o descripción inicial expresada por el ciudadano.
+  latitude      Float?         // Latitud registrada durante la interacción.
+  longitude     Float?         // Longitud registrada durante la interacción.
+  startedAt     DateTime       @default(now()) // Fecha y hora de inicio de la sesión.
+  endedAt       DateTime?      // Fecha y hora de finalización de la sesión.
+  tbcitizens    tbcitizens     @relation(fields: [FK_citizen], references: [PK_citizen]) // Relación con el ciudadano.
+  tbemergencies tbemergencies? @relation(fields: [FK_emergency], references: [PK_emergency]) // Relación con la emergencia vinculada.
+
+  @@index([FK_citizen]) // Índice para búsquedas por ciudadano.
+  @@index([FK_emergency]) // Índice para búsquedas por emergencia.
+}
+
+
+// ============================================================
+// REPORTES INDIVIDUALES DE CIUDADANOS
+// DEDUPLICACIÓN E HISTORIAL
+// ============================================================
+
+model tbemergencyreports {
+  PK_report              Int           @id @default(autoincrement()) // Clave primaria del reporte individual.
+  FK_emergency           Int           // Emergencia principal a la que pertenece el reporte.
+  FK_citizen             Int?          // Ciudadano que realizó el reporte.
+  reportChannel          String        // Canal mediante el cual se recibió el reporte. Valores: APP_CALL, APP_CHAT, MANUAL_OPERATOR.
+  description            String?       // Descripción proporcionada por el ciudadano.
+  latitude               Float         // Latitud registrada en el momento del reporte.
+  longitude              Float         // Longitud registrada en el momento del reporte.
+  isLinkedByAI           Boolean       @default(false) // Indica si la IA vinculó este reporte con una emergencia existente.
+  linkingConfidence      Float?        // Nivel de confianza utilizado por la IA para vincular el reporte.
+  distanceMetersFromMain Float?        // Distancia en metros entre este reporte y el reporte principal.
+  reportedAt             DateTime      @default(now()) // Fecha y hora en que se realizó el reporte.
+  tbemergencies          tbemergencies @relation(fields: [FK_emergency], references: [PK_emergency]) // Relación con la emergencia principal.
+  tbcitizens             tbcitizens?   @relation(fields: [FK_citizen], references: [PK_citizen]) // Relación con el ciudadano reportante.
+
+  @@index([FK_emergency]) // Índice para búsquedas por emergencia.
+  @@index([FK_citizen]) // Índice para búsquedas por ciudadano.
+  @@index([isLinkedByAI]) // Índice para búsquedas de reportes vinculados por IA.
+}
+
+
+// ============================================================
+// UBICACIONES DEL INCIDENTE
+// ============================================================
+
+model tbemergencylocations {
+  PK_location   Int           @id @default(autoincrement()) // Clave primaria de la ubicación.
+  FK_emergency  Int           // Emergencia a la que pertenece la ubicación.
+  latitude      Float         // Latitud geográfica del incidente.
+  longitude     Float         // Longitud geográfica del incidente.
+  accuracy      Float?        // Precisión estimada de la ubicación en metros.
+  address       String?       // Dirección textual asociada a las coordenadas.
+  createdAt     DateTime      @default(now()) // Fecha y hora de registro de la ubicación.
+  tbemergencies tbemergencies @relation(fields: [FK_emergency], references: [PK_emergency]) // Relación con la emergencia.
+
+  @@index([FK_emergency]) // Índice para búsquedas por emergencia.
+}
+
+
+// ============================================================
+// LLAMADAS DE EMERGENCIA
+// ============================================================
+
+model tbcalls {
+  PK_call         Int           @id @default(autoincrement()) // Clave primaria de la llamada.
+  FK_emergency    Int           // Emergencia asociada a la llamada.
+  callType        String        // Tipo de llamada. Valores: ENTRANTE_IA, OPERADOR, SALIENTE.
+  status          String        // Estado actual de la llamada. Valores: EN_PROCESO, FINALIZADA, CORTADA.
+  startedAt       DateTime      @default(now()) // Fecha y hora en que comenzó la llamada.
+  answeredAt      DateTime?     // Fecha y hora en que la llamada fue contestada.
+  endedAt         DateTime?     // Fecha y hora en que terminó la llamada.
+  durationSeconds Int?          // Duración de la llamada expresada en segundos.
+  transcription   String?       // Transcripción textual de la llamada.
+  audioUrl        String?       // URL o ruta del archivo de audio.
+  createdAt       DateTime      @default(now()) // Fecha y hora de creación del registro.
+  actionHistory   Json?         // Historial de acciones relacionadas con la llamada.
+  tbemergencies   tbemergencies @relation(fields: [FK_emergency], references: [PK_emergency]) // Relación con la emergencia.
+
+  @@index([FK_emergency]) // Índice para búsquedas por emergencia.
+}
+
+
+// ============================================================
+// SALA DE CRISIS
+// CANAL ABIERTO ÚNICO
+// ============================================================
+
+model tbemergencyrooms {
+  PK_room       Int                      @id @default(autoincrement()) // Clave primaria de la sala de crisis.
+  FK_emergency  Int                      @unique // Emergencia asociada a la sala.
+  roomCode      String                   @unique // Código único de identificación de la sala.
+  isOpen        Boolean                  @default(true) // Indica si la sala se encuentra abierta.
+  createdAt     DateTime                 @default(now()) // Fecha y hora de creación de la sala.
+  closedAt      DateTime?                // Fecha y hora en que la sala fue cerrada.
+  tbemergencies tbemergencies            @relation(fields: [FK_emergency], references: [PK_emergency]) // Relación con la emergencia.
+  tbroommembers tbemergencyroommembers[] // Miembros que participan en la sala.
+  tbchatmessages tbchatmessages[]        // Mensajes enviados dentro de la sala.
+}
+
+
+// ============================================================
+// MIEMBROS INTEGRADOS AL CANAL ABIERTO
+// ============================================================
+
+model tbemergencyroommembers {
+  PK_roomMember    Int              @id @default(autoincrement()) // Clave primaria del miembro de la sala.
+  FK_room          Int              // Sala de emergencia a la que pertenece el miembro.
+  FK_citizen       Int?             // Ciudadano participante de la sala.
+  FK_user          Int?             // Usuario del sistema participante de la sala.
+  FK_institution   Int?             // Institución participante de la sala.
+  FK_unit          Int?             // Unidad de respuesta participante de la sala.
+  memberRole       String           // Rol que desempeña el miembro dentro de la sala. Valores: FIRST_REPORTING_CITIZEN, ADDITIONAL_CITIZEN, IA_BOT, CENTRAL_GAMC, INSTITUTION_DISPATCHER, ASSIGNED_UNIT.
+  joinedAt         DateTime         @default(now()) // Fecha y hora en que el miembro ingresó a la sala.
+  leftAt           DateTime?        // Fecha y hora en que abandonó la sala.
+  isActive         Boolean          @default(true) // Indica si el miembro continúa activo en la sala.
+  tbemergencyrooms tbemergencyrooms @relation(fields: [FK_room], references: [PK_room]) // Relación con la sala de emergencia.
+  tbcitizens       tbcitizens?      @relation(fields: [FK_citizen], references: [PK_citizen]) // Relación con el ciudadano.
+  tbusers          tbusers?         @relation(fields: [FK_user], references: [PK_user]) // Relación con el usuario.
+  tbinstitutions   tbinstitutions?  @relation(fields: [FK_institution], references: [PK_institution]) // Relación con la institución.
+  tbunits          tbunits?         @relation(fields: [FK_unit], references: [PK_unit]) // Relación con la unidad.
+
+  @@index([FK_room]) // Índice para búsquedas por sala.
+  @@index([FK_citizen]) // Índice para búsquedas por ciudadano.
+  @@index([FK_institution]) // Índice para búsquedas por institución.
+  @@index([FK_unit]) // Índice para búsquedas por unidad.
+}
+
+
+// ============================================================
+// MENSAJES DEL CANAL ABIERTO CENTRALIZADO
+// ============================================================
+
+model tbchatmessages {
+  PK_chatMessage   Int              @id @default(autoincrement()) // Clave primaria del mensaje.
+  FK_room          Int              // Sala donde fue enviado el mensaje.
+  FK_citizen       Int?             // Ciudadano que envió el mensaje.
+  FK_user          Int?             // Usuario del sistema que envió el mensaje.
+  FK_institution   Int?             // Institución desde donde se envió el mensaje.
+  FK_unit          Int?             // Unidad desde donde se envió el mensaje.
+  senderRole       String           // Rol del emisor del mensaje. Valores: CITIZEN, IA, CENTRAL_GAMC, POLICE_UNIT, FIRE_UNIT, AMBULANCE_UNIT, SAR_UNIT.
+  senderName       String           // Nombre visible del emisor.
+  messageType      String           // Tipo de contenido del mensaje. Valores: TEXT, LOCATION, AUDIO, IMAGE, CRITICAL_ALERT, SYSTEM_EVENT.
+  message          String?          // Contenido textual del mensaje.
+  fileUrl          String?          // URL o ruta del archivo adjunto.
+  createdAt        DateTime         @default(now()) // Fecha y hora en que fue creado el mensaje.
+  tbemergencyrooms tbemergencyrooms @relation(fields: [FK_room], references: [PK_room]) // Relación con la sala.
+  tbcitizens       tbcitizens?      @relation(fields: [FK_citizen], references: [PK_citizen]) // Relación con el ciudadano emisor.
+  tbusers          tbusers?         @relation(fields: [FK_user], references: [PK_user]) // Relación con el usuario emisor.
+  tbinstitutions   tbinstitutions?  @relation(fields: [FK_institution], references: [PK_institution]) // Relación con la institución emisora.
+  tbunits          tbunits?         @relation(fields: [FK_unit], references: [PK_unit]) // Relación con la unidad emisora.
+
+  @@index([FK_room]) // Índice para búsquedas por sala.
+  @@index([FK_citizen]) // Índice para búsquedas por ciudadano.
+  @@index([FK_user]) // Índice para búsquedas por usuario.
+  @@index([FK_institution]) // Índice para búsquedas por institución.
+  @@index([FK_unit]) // Índice para búsquedas por unidad.
+}
+
+
+// ============================================================
+// HISTORIAL DE UBICACIONES DE UNIDADES
+// ============================================================
+
+model tbunitlocations {
+  PK_unitLocation Int      @id @default(autoincrement()) // Clave primaria del registro de ubicación.
+  FK_unit         Int      // Unidad a la que pertenece la ubicación.
+  latitude        Float    // Latitud geográfica reportada por la unidad.
+  longitude       Float    // Longitud geográfica reportada por la unidad.
+  speed           Float?   // Velocidad reportada en km/h.
+  heading         Float?   // Dirección o rumbo en grados.
+  createdAt       DateTime @default(now()) // Fecha y hora de registro de la ubicación.
+  tbunits         tbunits  @relation(fields: [FK_unit], references: [PK_unit]) // Relación con la unidad.
+
+  @@index([FK_unit]) // Índice para búsquedas por unidad.
+  @@index([createdAt]) // Índice para ordenamiento cronológico.
+}
+
+
+// ============================================================
+// EVIDENCIAS MULTIMEDIA
+// ============================================================
+
+model tbevidences {
+  PK_evidence   Int           @id @default(autoincrement()) // Clave primaria de la evidencia.
+  FK_emergency  Int           // Emergencia a la que pertenece la evidencia.
+  FK_citizen    Int?          // Ciudadano que cargó la evidencia.
+  FK_user       Int?          // Usuario del sistema que cargó la evidencia.
+  fileType      String        // Tipo de archivo multimedia. Valores: AUDIO, IMAGE, VIDEO.
+  fileUrl       String        // URL o ruta donde se almacena el archivo.
+  description   String?       // Descripción opcional del contenido.
+  createdAt     DateTime      @default(now()) // Fecha y hora de carga de la evidencia.
+  tbemergencies tbemergencies @relation(fields: [FK_emergency], references: [PK_emergency]) // Relación con la emergencia.
+  tbcitizens    tbcitizens?   @relation(fields: [FK_citizen], references: [PK_citizen]) // Relación con el ciudadano.
+  tbusers       tbusers?      @relation(fields: [FK_user], references: [PK_user]) // Relación con el usuario.
+
+  @@index([FK_emergency]) // Índice para búsquedas por emergencia.
+  @@index([FK_citizen]) // Índice para búsquedas por ciudadano.
+  @@index([FK_user]) // Índice para búsquedas por usuario.
+}
+
+
+// ============================================================
+// ANÁLISIS DE INTELIGENCIA ARTIFICIAL
+// ============================================================
+
+model tbaianalyses {
+  PK_aiAnalysis     Int           @id @default(autoincrement()) // Clave primaria del análisis de IA.
+  FK_emergency      Int           // Emergencia analizada por la IA.
+  confidenceScore   Float         // Grado de confianza del análisis realizado.
+  suggestedPriority String        // Prioridad sugerida por la IA.
+  extractedEntities Json          // Datos estructurados extraídos por la IA en formato JSON.
+  rawResponse       Json?         // Respuesta cruda generada por el modelo de IA.
+  createdAt         DateTime      @default(now()) // Fecha y hora del análisis.
+  tbemergencies     tbemergencies @relation(fields: [FK_emergency], references: [PK_emergency]) // Relación con la emergencia.
+
+  @@index([FK_emergency]) // Índice para búsquedas por emergencia.
+}
+
+
+// ============================================================
+// REQUERIMIENTOS DE EMERGENCIA
+// ============================================================
+
+model tbemergencyrequirements {
+  PK_requirement  Int             @id @default(autoincrement()) // Clave primaria del requerimiento.
+  FK_emergency    Int             // Emergencia que requiere el recurso.
+  FK_resourceType Int             // Tipo de recurso requerido.
+  quantity        Int             @default(1) // Cantidad requerida del recurso.
+  status          String          @default("PENDIENTE") // Estado del requerimiento. Valores: PENDIENTE, ASIGNADO, ATENDIDO.
+  createdAt       DateTime        @default(now()) // Fecha y hora de creación del requerimiento.
+  tbemergencies   tbemergencies   @relation(fields: [FK_emergency], references: [PK_emergency]) // Relación con la emergencia.
+  tbresourcetypes tbresourcetypes @relation(fields: [FK_resourceType], references: [PK_resourceType]) // Relación con el tipo de recurso.
+
+  @@index([FK_emergency]) // Índice para búsquedas por emergencia.
+  @@index([FK_resourceType]) // Índice para búsquedas por tipo de recurso.
+}
+
+
+// ============================================================
+// ASIGNACIONES DE INSTITUCIONES Y UNIDADES
+// ============================================================
+
+model tbemergencyassignments {
+  PK_assignment         Int                    @id @default(autoincrement()) // Clave primaria de la asignación.
+  FK_emergency          Int                    // Emergencia asignada.
+  FK_institution        Int                    // Institución asignada.
+  FK_subinstitution     Int?                   // Subinstitución asignada.
+  FK_unit               Int?                   // Unidad de respuesta asignada.
+  status                String                 // Estado de la asignación. Valores: SOLICITADA, ACEPTADA, EN_CAMINO, EN_SITIO, FINALIZADA, RECHAZADA, CANCELADA.
+  assignedAt            DateTime               @default(now()) // Fecha y hora en que se realizó la asignación.
+  acceptedAt            DateTime?              // Fecha y hora en que fue aceptada la asignación.
+  arrivedAt             DateTime?              // Fecha y hora de llegada al sitio del incidente.
+  completedAt           DateTime?              // Fecha y hora en que finalizó la atención.
+  tbemergencies         tbemergencies          @relation(fields: [FK_emergency], references: [PK_emergency]) // Relación con la emergencia.
+  tbinstitutions        tbinstitutions         @relation(fields: [FK_institution], references: [PK_institution]) // Relación con la institución.
+  tbsubinstitutions     tbsubinstitutions?     @relation(fields: [FK_subinstitution], references: [PK_subinstitution]) // Relación con la subinstitución.
+  tbunits               tbunits?               @relation(fields: [FK_unit], references: [PK_unit]) // Relación con la unidad.
+  tbassignmenttracking  tbassignmenttracking[] // Rastreos GPS de esta asignación.
+
+  @@index([FK_emergency]) // Índice para búsquedas por emergencia.
+  @@index([FK_institution]) // Índice para búsquedas por institución.
+  @@index([FK_subinstitution]) // Índice para búsquedas por subinstitución.
+  @@index([FK_unit]) // Índice para búsquedas por unidad.
+}
+
+
+// ============================================================
+// RASTREO GPS DE ASIGNACIONES (DESPACHO Y RUTA)
+// ============================================================
+
+model tbassignmenttracking {
+  PK_tracking            Int                    @id @default(autoincrement()) // Clave primaria del registro de rastreo.
+  FK_assignment          Int                    // Asignación vinculada al rastreo.
+  FK_unit                Int                    // Unidad asignada rastreada.
+  latitude               Float                  // Latitud geográfica actual de la unidad.
+  longitude              Float                  // Longitud geográfica actual de la unidad.
+  speed                  Float?                 // Velocidad en km/h durante el trayecto.
+  heading                Float?                 // Sentido o rumbo en grados.
+  createdAt              DateTime               @default(now()) // Fecha y hora de registro de las coordenadas.
+  tbemergencyassignments tbemergencyassignments @relation(fields: [FK_assignment], references: [PK_assignment]) // Relación con la asignación.
+  tbunits                tbunits                @relation(fields: [FK_unit], references: [PK_unit]) // Relación con la unidad.
+
+  @@index([FK_assignment]) // Índice para búsquedas por asignación.
+  @@index([FK_unit]) // Índice para búsquedas por unidad.
+  @@index([createdAt]) // Índice para consultas ordenadas cronológicamente.
+}
+
+
+// ============================================================
+// HISTORIAL DE ESTADOS DE LA EMERGENCIA
+// ============================================================
+
+model tbemergencystatushistory {
+  PK_statusHistory Int           @id @default(autoincrement()) // Clave primaria del historial de estado.
+  FK_emergency     Int           // Emergencia a la que corresponde el cambio.
+  FK_user          Int?          // Usuario que realizó o autorizó el cambio.
+  previousStatus   String?       // Estado previo de la emergencia.
+  newStatus        String        // Nuevo estado asignado.
+  changeReason     String?       // Motivo o justificación del cambio de estado.
+  createdAt        DateTime      @default(now()) // Fecha y hora del registro.
+  tbemergencies    tbemergencies @relation(fields: [FK_emergency], references: [PK_emergency]) // Relación con la emergencia.
+  tbusers          tbusers?      @relation(fields: [FK_user], references: [PK_user]) // Relación con el usuario autor del cambio.
+
+  @@index([FK_emergency]) // Índice para búsquedas por emergencia.
+  @@index([FK_user]) // Índice para búsquedas por usuario.
+}
+
+
+// ============================================================
+// REPORTES DE AVANCE Y EVOLUCIÓN DEL CASO
+// ============================================================
+
+model tbemergencyprogressreports {
+  PK_progressReport Int            @id @default(autoincrement()) // Clave primaria del reporte de avance.
+  FK_emergency      Int            // Emergencia sobre la cual se hace el reporte.
+  FK_institution    Int?           // Institución que realiza el reporte de avance.
+  FK_user           Int?           // Usuario que registró el reporte.
+  reportText        String         // Contenido o descripción del avance registrado.
+  createdAt         DateTime       @default(now()) // Fecha y hora de creación del reporte.
+  tbemergencies     tbemergencies  @relation(fields: [FK_emergency], references: [PK_emergency]) // Relación con la emergencia.
+  tbinstitutions    tbinstitutions? @relation(fields: [FK_institution], references: [PK_institution]) // Relación con la institución.
+  tbusers           tbusers?       @relation(fields: [FK_user], references: [PK_user]) // Relación con el usuario que registró el reporte.
+
+  @@index([FK_emergency]) // Índice para búsquedas por emergencia.
+  @@index([FK_institution]) // Índice para búsquedas por institución.
+  @@index([FK_user]) // Índice para búsquedas por usuario.
+}
+
+
+// ============================================================
+// NOTIFICACIONES DEL SISTEMA
+// ============================================================
+
+model tbnotifications {
+  PK_notification Int            @id @default(autoincrement()) // Clave primaria de la notificación.
+  FK_citizen      Int?           // Ciudadano destinatario de la notificación.
+  FK_user         Int?           // Usuario del sistema destinatario de la notificación.
+  FK_emergency    Int?           // Emergencia asociada a la notificación.
+  title           String         // Título de la notificación.
+  message         String         // Mensaje o contenido descriptivo de la notificación.
+  notificationType String        // Tipo de notificación. Valores: PUSH, SYSTEM_ALERT, DISPATCH_UPDATE.
+  isRead          Boolean        @default(false) // Indica si la notificación fue leída.
+  createdAt       DateTime       @default(now()) // Fecha y hora de creación de la notificación.
+  tbcitizens      tbcitizens?    @relation(fields: [FK_citizen], references: [PK_citizen]) // Relación con el ciudadano.
+  tbusers         tbusers?       @relation(fields: [FK_user], references: [PK_user]) // Relación con el usuario.
+  tbemergencies   tbemergencies? @relation(fields: [FK_emergency], references: [PK_emergency]) // Relación con la emergencia.
+
+  @@index([FK_citizen]) // Índice para búsquedas por ciudadano.
+  @@index([FK_user]) // Índice para búsquedas por usuario.
+  @@index([FK_emergency]) // Índice para búsquedas por emergencia.
+}
+
+
+// ============================================================
+// DESTINOS DE EMERGENCIA (HOSPITALES, REFUGIOS, ETC.)
+// ============================================================
+
+model tbemergencydestinations {
+  PK_destination Int            @id @default(autoincrement()) // Clave primaria del destino registrado.
+  FK_emergency   Int            // Emergencia relacionada con la derivación.
+  FK_institution Int?           // Institución o centro de destino asignado.
+  destinationName String        // Nombre del hospital, refugio o centro de atención.
+  latitude        Float?         // Latitud geográfica del centro de destino.
+  longitude       Float?         // Longitud geográfica del centro de destino.
+  arrivalEta      DateTime?      // Tiempo estimado de llegada (ETA).
+  arrivedAt       DateTime?      // Fecha y hora efectiva de llegada al destino.
+  createdAt       DateTime       @default(now()) // Fecha y hora de registro del destino.
+  tbemergencies   tbemergencies  @relation(fields: [FK_emergency], references: [PK_emergency]) // Relación con la emergencia.
+  tbinstitutions  tbinstitutions? @relation(fields: [FK_institution], references: [PK_institution]) // Relación con la institución receptora.
+
+  @@index([FK_emergency]) // Índice para búsquedas por emergencia.
+  @@index([FK_institution]) // Índice para búsquedas por institución.
+}
