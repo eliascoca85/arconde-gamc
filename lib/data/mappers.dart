@@ -100,12 +100,17 @@ List<TimelineEvent> _timelineFromDto(EmergencyDto dto) {
   ];
 }
 
-Incident emergencyToIncident(EmergencyDto dto, {required String reporterId, required String reporterName}) {
+Incident emergencyToIncident(
+  EmergencyDto dto, {
+  required String reporterId,
+  required String reporterName,
+  String? typeOverride,
+}) {
   return Incident(
     id: dto.pkEmergency.toString(),
     title: _titleFromDto(dto),
     description: dto.description,
-    type: _incidentTypeFromCode(dto.type.code),
+    type: _incidentTypeFromCode(typeOverride ?? dto.type.code),
     status: _incidentStatusFrom(dto.priority, dto.status),
     location: _locationFromDto(dto),
     createdAt: dto.createdAt,
@@ -119,12 +124,12 @@ Incident emergencyToIncident(EmergencyDto dto, {required String reporterId, requ
   );
 }
 
-Report emergencyToReport(EmergencyDto dto) {
+Report emergencyToReport(EmergencyDto dto, {String? typeOverride}) {
   return Report(
     id: dto.pkEmergency.toString(),
     title: _titleFromDto(dto),
     description: dto.description,
-    type: _incidentTypeFromCode(dto.type.code),
+    type: _incidentTypeFromCode(typeOverride ?? dto.type.code),
     status: _reportStatusFrom(dto.status),
     location: _locationFromDto(dto),
     createdAt: dto.createdAt,

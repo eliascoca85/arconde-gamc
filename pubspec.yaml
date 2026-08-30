@@ -28,6 +28,7 @@ dependencies:
   path_provider: ^2.1.6
   shared_preferences: ^2.5.5
   flutter_sound: ^9.28.0
+  flutter_pcm_sound: ^3.3.3
   web_socket_channel: ^3.0.3
 
 dev_dependencies:

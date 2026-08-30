@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/auth_service.dart';
+import '../../core/services/category_override_store.dart';
 import '../../mock/models.dart';
 import '../dtos/emergency_dto.dart';
 import '../dtos/emergency_message_dto.dart';
@@ -39,20 +40,33 @@ class EmergencyRepository {
   Future<List<Incident>> listMineIncidents() async {
     final reporterName = await _reporterName();
     final dtos = await _listMineDtos();
+    final overrides = await CategoryOverrideStore.loadAll();
     return dtos
-        .map((dto) => emergencyToIncident(dto, reporterId: _reporterId, reporterName: reporterName))
+        .map((dto) => emergencyToIncident(
+              dto,
+              reporterId: _reporterId,
+              reporterName: reporterName,
+              typeOverride: overrides[dto.pkEmergency],
+            ))
         .toList();
   }
 
   Future<List<Report>> listMineReports() async {
     final dtos = await _listMineDtos();
-    return dtos.map(emergencyToReport).toList();
+    final overrides = await CategoryOverrideStore.loadAll();
+    return dtos.map((dto) => emergencyToReport(dto, typeOverride: overrides[dto.pkEmergency])).toList();
   }
 
   Future<Incident> getDetailIncident(int id) async {
     final reporterName = await _reporterName();
     final dto = await _getDto(id);
-    return emergencyToIncident(dto, reporterId: _reporterId, reporterName: reporterName);
+    final overrides = await CategoryOverrideStore.loadAll();
+    return emergencyToIncident(
+      dto,
+      reporterId: _reporterId,
+      reporterName: reporterName,
+      typeOverride: overrides[dto.pkEmergency],
+    );
   }
 
   String get _reporterId => AuthService.currentCitizenId?.toString() ?? '';
@@ -62,6 +76,7 @@ class EmergencyRepository {
     required double latitude,
     required double longitude,
     required String address,
+    IncidentType? category,
   }) async {
     final response = await _dio.post(
       '/api/citizen/emergency/report',
@@ -74,7 +89,14 @@ class EmergencyRepository {
     );
     final data = response.data as Map<String, dynamic>;
     final emergencyJson = data['emergency'] as Map<String, dynamic>? ?? data;
-    return EmergencyDto.fromJson(emergencyJson);
+    final dto = EmergencyDto.fromJson(emergencyJson);
+    // The create endpoint has no category field — the backend defaults every
+    // report to "Otro" itself. Persist the chosen category locally so this
+    // device's own map/list reflects it instead (see CategoryOverrideStore).
+    if (category != null) {
+      await CategoryOverrideStore.save(dto.pkEmergency, category.value);
+    }
+    return dto;
   }
 
   Future<List<EmergencyMessageDto>> listMessages(int emergencyId) async {

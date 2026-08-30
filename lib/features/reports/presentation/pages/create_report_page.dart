@@ -119,6 +119,7 @@ class _CreateReportPageState extends State<CreateReportPage> {
         latitude: location.latitude,
         longitude: location.longitude,
         address: location.address,
+        category: _selectedCategory?.type,
       );
 
       final localEvidence = _evidenceUrls.where((url) => !url.startsWith('http'));

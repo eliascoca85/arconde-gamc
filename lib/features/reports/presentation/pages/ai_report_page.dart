@@ -11,6 +11,7 @@ import '../../../../core/network/nominatim_service.dart';
 import '../../../../core/services/location_service.dart';
 import '../../../../core/services/voice_audio_service.dart';
 import '../../../../data/repositories/emergency_repository.dart';
+import '../../../../mock/models.dart';
 import '../../../../shared/widgets/basic_widgets.dart';
 import '../widgets/report_success_sheet.dart';
 
@@ -188,11 +189,16 @@ class _AiReportPageState extends State<AiReportPage> {
 
     try {
       final combinedDescription = '[$category] $description';
+      final matchedType = IncidentType.values.firstWhere(
+        (type) => type.label == category,
+        orElse: () => IncidentType.other,
+      );
       final emergency = await _emergencyRepository.report(
         description: combinedDescription,
         latitude: _latitude!,
         longitude: _longitude!,
         address: _address ?? '',
+        category: matchedType,
       );
       _gemini?.sendToolResponse(callId, success: true);
 
