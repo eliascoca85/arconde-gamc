@@ -108,6 +108,29 @@ class NominatimService {
     }
   }
 
+  /// Reverse geocodes coordinates into a human-readable address. Returns
+  /// `null` on any failure instead of throwing — callers treat this as a
+  /// best-effort enrichment (falling back to raw coordinates), never as a
+  /// blocker for whatever they're doing with the location.
+  static Future<String?> reverseGeocode(double lat, double lng) async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/reverse',
+        queryParameters: {
+          'format': 'jsonv2',
+          'lat': lat,
+          'lon': lng,
+          'addressdetails': 1,
+          'zoom': 18,
+        },
+      );
+      final displayName = response.data?['display_name'] as String?;
+      return (displayName != null && displayName.isNotEmpty) ? displayName : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   static GeoSearchResult? _parseResult(Map<String, dynamic> item) {
     final lat = double.tryParse(item['lat']?.toString() ?? '');
     final lon = double.tryParse(item['lon']?.toString() ?? '');

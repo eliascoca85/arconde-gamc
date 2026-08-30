@@ -38,7 +38,8 @@ lib/
 ```
 Splash (2.5s) → Onboarding (4 páginas) → Home/Mapa
   → Tocar marcador/tarjeta → Detalle incidente
-  → FAB "Reportar" → Wizard 4 pasos → Confirmación → Ver seguimiento
+  → FAB "Reportar" → Reporte por voz con IA (Gemini Live) → Confirmación → Ver seguimiento
+    → alternativa: "Reportar manualmente" → Wizard 4 pasos → Confirmación → Ver seguimiento
   → Bottom nav: Mis reportes / Notificaciones / Perfil
 ```
 
@@ -61,6 +62,23 @@ flutter run
 flutter build apk --debug
 ```
 
+### Reporte por voz (Gemini Live)
+
+El botón "Reportar" abre una conversación de voz en tiempo real con un agente
+Gemini que arma el reporte por vos (`AiReportPage`). Necesita una API key de
+Gemini (gratis en [Google AI Studio](https://aistudio.google.com) → "Get API
+key"), inyectada en tiempo de build — nunca hardcodeada en el código:
+
+```bash
+cp env.json.example env.json
+# editar env.json y pegar la key en GEMINI_API_KEY
+flutter run --dart-define-from-file=env.json
+```
+
+Sin `env.json`, la pantalla de voz muestra un aviso de "no configurado" con
+un enlace al wizard manual (`CreateReportPage`), que sigue disponible sin
+necesidad de key.
+
 ## Dependencias principales
 
 - `go_router` — navegación declarativa
@@ -68,3 +86,5 @@ flutter build apk --debug
 - `google_maps_flutter` — mapa (mock visual)
 - `image_picker` — selección de evidencia
 - `intl` — formateo de fechas
+- `flutter_sound` — captura/reproducción de audio PCM crudo para el reporte por voz
+- `web_socket_channel` — transporte WebSocket hacia la Gemini Live API

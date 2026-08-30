@@ -6,6 +6,7 @@ import '../../../features/home/presentation/pages/home_page.dart';
 import '../../../features/map/presentation/pages/map_page.dart';
 import '../../../features/incident_detail/presentation/pages/incident_detail_page.dart';
 import '../../../features/reports/presentation/pages/create_report_page.dart';
+import '../../../features/reports/presentation/pages/ai_report_page.dart';
 import '../../../features/reports/presentation/pages/my_reports_page.dart';
 import '../../../features/notifications/presentation/pages/notifications_page.dart';
 import '../../../features/profile/presentation/pages/profile_page.dart';
@@ -15,6 +16,7 @@ class AppRouter {
   static const String map = '/map';
   static const String incidentDetail = '/incident/:id';
   static const String createReport = '/report/create';
+  static const String aiReport = '/report/ai';
   static const String myReports = '/reports/my';
   static const String notifications = '/notifications';
   static const String profile = '/profile';
@@ -45,6 +47,11 @@ class AppRouter {
         path: createReport,
         name: 'create-report',
         builder: (context, state) => const CreateReportPage(),
+      ),
+      GoRoute(
+        path: aiReport,
+        name: 'ai-report',
+        builder: (context, state) => const AiReportPage(),
       ),
       GoRoute(
         path: myReports,

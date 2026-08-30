@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
+import '../../../../../app/routes/app_router.dart';
 import '../../../../../app/theme/index.dart';
 import '../../../../../core/animations/motion.dart';
 import '../../../../../core/constants/app_constants.dart';
@@ -77,7 +78,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _onReportPressed() {
-    context.push('/report/create');
+    context.push(AppRouter.aiReport);
   }
 
   void _onToggleMapExpanded() {
