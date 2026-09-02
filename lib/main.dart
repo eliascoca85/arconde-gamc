@@ -22,23 +22,15 @@ class ArconteApp extends StatefulWidget {
 }
 
 class _ArconteAppState extends State<ArconteApp> {
-  bool _showSplash = true;
   bool _skippedAuth = false;
 
   @override
   void initState() {
     super.initState();
-    _initApp();
-  }
-
-  Future<void> _initApp() async {
-    await Future.wait([
-      AuthService.restoreSession(),
-      Future.delayed(const Duration(milliseconds: 2500)),
-    ]);
-    if (mounted) {
-      setState(() => _showSplash = false);
-    }
+    // Restore the session in the background — never blocks the first frame.
+    // Any failure (network, storage, plugin channel, etc.) just leaves the
+    // user on the login/skip screen instead of hanging on a loading state.
+    AuthService.restoreSession().catchError((_) {});
   }
 
   void _onSkip() {
@@ -47,17 +39,18 @@ class _ArconteAppState extends State<ArconteApp> {
 
   @override
   Widget build(BuildContext context) {
-    if (_showSplash) {
-      return _preRouterShell(const _SplashScreen());
-    }
-
     return ValueListenableBuilder<bool>(
       valueListenable: AuthService.isLoggedIn,
       builder: (context, loggedIn, _) {
-        if (loggedIn || _skippedAuth) {
-          return const App();
-        }
-        return _preRouterShell(_LoginScreen(onComplete: _onSkip));
+        final showApp = loggedIn || _skippedAuth;
+        return AnimatedSwitcher(
+          duration: const Duration(milliseconds: 400),
+          switchInCurve: Curves.easeOut,
+          switchOutCurve: Curves.easeIn,
+          child: showApp
+              ? const App(key: ValueKey('app'))
+              : _preRouterShell(_LoginScreen(key: const ValueKey('login'), onComplete: _onSkip)),
+        );
       },
     );
   }
@@ -72,85 +65,6 @@ class _ArconteAppState extends State<ArconteApp> {
   }
 }
 
-class _SplashScreen extends StatefulWidget {
-  const _SplashScreen();
-
-  @override
-  State<_SplashScreen> createState() => _SplashScreenState();
-}
-
-class _SplashScreenState extends State<_SplashScreen> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _scaleAnimation;
-  late Animation<double> _opacityAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 2000),
-      vsync: this,
-    );
-
-    _scaleAnimation = Tween<double>(begin: 0.5, end: 1.2).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.elasticOut),
-    );
-
-    _opacityAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
-      ),
-    );
-
-    _controller.forward();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.backgroundPrimary,
-      body: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, child) {
-          return Center(
-            child: Opacity(
-              opacity: _opacityAnimation.value,
-              child: Transform.scale(
-                scale: _scaleAnimation.value,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Image.asset(
-                      'assets/icons/LOGO_GAMC.png',
-                      width: 160,
-                      height: 160,
-                      fit: BoxFit.contain,
-                    ),
-                    const SizedBox(height: AppSpacing.xl),
-                    Text('Arconte', style: AppTextStyles.displaySmall),
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      'Tu comunidad, tu seguridad',
-                      style: AppTextStyles.bodyLargeSecondary,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
 enum _LoginMethod { email, phone }
 
 enum _AuthStage { choice, login, register }
@@ -158,7 +72,7 @@ enum _AuthStage { choice, login, register }
 class _LoginScreen extends StatefulWidget {
   final VoidCallback onComplete;
 
-  const _LoginScreen({required this.onComplete});
+  const _LoginScreen({super.key, required this.onComplete});
 
   @override
   State<_LoginScreen> createState() => _LoginScreenState();
