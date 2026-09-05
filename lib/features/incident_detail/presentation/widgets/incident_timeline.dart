@@ -7,8 +7,15 @@ import '../../../../../shared/widgets/basic_widgets.dart';
 
 class IncidentHeader extends StatelessWidget {
   final Incident incident;
+  final VoidCallback? onLikeTap;
+  final bool isTogglingLike;
 
-  const IncidentHeader({super.key, required this.incident});
+  const IncidentHeader({
+    super.key,
+    required this.incident,
+    this.onLikeTap,
+    this.isTogglingLike = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -46,7 +53,15 @@ class IncidentHeader extends StatelessWidget {
             const Spacer(),
             _buildStatChip(Icons.visibility_outlined, incident.viewsCount.toString()),
             const SizedBox(width: AppSpacing.sm),
-            _buildStatChip(Icons.thumb_up_outlined, incident.confirmationsCount.toString()),
+            GestureDetector(
+              onTap: isTogglingLike ? null : onLikeTap,
+              child: _buildStatChip(
+                incident.isLikedByMe ? Icons.thumb_up : Icons.thumb_up_outlined,
+                incident.confirmationsCount.toString(),
+                highlighted: incident.isLikedByMe,
+                loading: isTogglingLike,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: AppSpacing.md),
@@ -77,19 +92,27 @@ class IncidentHeader extends StatelessWidget {
     );
   }
 
-  Widget _buildStatChip(IconData icon, String count) {
+  Widget _buildStatChip(IconData icon, String count, {bool highlighted = false, bool loading = false}) {
+    final color = highlighted ? AppColors.primaryBlue : AppColors.textTertiary;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
       decoration: BoxDecoration(
-        color: AppColors.surfaceSecondary,
+        color: highlighted ? AppColors.primaryBlue.withValues(alpha: 0.12) : AppColors.surfaceSecondary,
         borderRadius: BorderRadius.circular(AppSpacing.borderRadiusSm),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: AppSpacing.iconXs, color: AppColors.textTertiary),
+          if (loading)
+            SizedBox(
+              width: AppSpacing.iconXs,
+              height: AppSpacing.iconXs,
+              child: CircularProgressIndicator(strokeWidth: 1.5, color: color),
+            )
+          else
+            Icon(icon, size: AppSpacing.iconXs, color: color),
           const SizedBox(width: AppSpacing.xs),
-          Text(count, style: AppTextStyles.labelSmall.copyWith(color: AppColors.textTertiary)),
+          Text(count, style: AppTextStyles.labelSmall.copyWith(color: color)),
         ],
       ),
     );
@@ -141,7 +164,7 @@ class IncidentTimeline extends StatelessWidget {
         description: '${Formatters.formatTime(incident.createdAt)} · Reporte registrado',
         timestamp: incident.createdAt,
         isCompleted: true,
-        isCurrent: incident.status == IncidentStatus.urgent && incident.confirmationsCount == 0,
+        isCurrent: incident.status == IncidentStatus.urgent && !incident.isAssigned,
         icon: Icons.check_circle,
         color: AppColors.resolvedGreen,
       ),
@@ -150,8 +173,8 @@ class IncidentTimeline extends StatelessWidget {
         title: 'En revisión',
         description: 'Patrulla asignada a la zona',
         timestamp: incident.createdAt.add(const Duration(minutes: 15)),
-        isCompleted: incident.status != IncidentStatus.urgent || incident.confirmationsCount > 0,
-        isCurrent: incident.status == IncidentStatus.moderate || incident.confirmationsCount > 0,
+        isCompleted: incident.status != IncidentStatus.urgent || incident.isAssigned,
+        isCurrent: incident.status == IncidentStatus.moderate || incident.isAssigned,
         icon: Icons.local_police,
         color: AppColors.primaryBlue,
       ),

@@ -146,6 +146,8 @@ class Incident {
   final int viewsCount;
   final int confirmationsCount;
   final bool isNearby;
+  final bool isLikedByMe;
+  final bool isAssigned;
 
   const Incident({
     required this.id,
@@ -162,6 +164,8 @@ class Incident {
     this.viewsCount = 0,
     this.confirmationsCount = 0,
     this.isNearby = false,
+    this.isLikedByMe = false,
+    this.isAssigned = false,
   });
 
   Color get statusColor {
@@ -194,6 +198,8 @@ class Incident {
     int? viewsCount,
     int? confirmationsCount,
     bool? isNearby,
+    bool? isLikedByMe,
+    bool? isAssigned,
   }) {
     return Incident(
       id: id ?? this.id,
@@ -210,6 +216,8 @@ class Incident {
       viewsCount: viewsCount ?? this.viewsCount,
       confirmationsCount: confirmationsCount ?? this.confirmationsCount,
       isNearby: isNearby ?? this.isNearby,
+      isLikedByMe: isLikedByMe ?? this.isLikedByMe,
+      isAssigned: isAssigned ?? this.isAssigned,
     );
   }
 }

@@ -27,10 +27,13 @@ class GeminiLiveTranscript extends GeminiLiveEvent {
 
 class GeminiLiveToolCall extends GeminiLiveEvent {
   final String id;
-  final String category;
-  final String description;
-  GeminiLiveToolCall({required this.id, required this.category, required this.description});
+  final String name;
+  final Map<String, dynamic> args;
+  GeminiLiveToolCall({required this.id, required this.name, required this.args});
 }
+
+const String submitReportTool = 'submit_report';
+const String markLocationManuallyTool = 'mark_location_manually';
 
 class GeminiLiveError extends GeminiLiveEvent {
   final String message;
@@ -60,12 +63,21 @@ const String _systemInstruction =
     'Tu tarea es ayudar a un ciudadano a reportar una emergencia hablando con él por voz, '
     'de forma calmada y natural. Dejá que la persona explique lo que pasó con sus propias '
     'palabras; si falta información clave (qué ocurrió, gravedad) hacé preguntas breves y '
-    'concretas, una a la vez. No pidas la ubicación: ya la tenemos. Elegí siempre la '
-    'categoría más específica de la lista que describa lo que pasó (Robo, Accidente, '
-    'Persona sospechosa, Violencia, Incendio, Emergencia médica, Vandalismo); usá "Otro" '
-    'únicamente si de verdad ninguna de esas encaja, nunca por defecto. Cuando tengas una '
-    'categoría clara y una descripción suficiente del incidente, llamá a la función '
-    'submit_report con esos datos y avisá a la persona que estás enviando el reporte.';
+    'concretas, una a la vez. '
+    'Muy temprano en la conversación, preguntá si la persona se encuentra actualmente en el '
+    'lugar del incidente. Si dice que sí, seguí normalmente: ya tenemos su ubicación GPS. Si '
+    'dice que no, o que está reportando desde otro lugar, llamá a la función '
+    'mark_location_manually (sin parámetros) UNA SOLA VEZ. Después de llamarla, no vuelvas a '
+    'preguntar por la ubicación ni a llamarla de nuevo bajo ninguna circunstancia: en cuanto '
+    'recibas el resultado de esa función (sin importar cuánto tiempo tome), tratá la ubicación '
+    'como resuelta de forma definitiva y continuá inmediatamente con la siguiente pregunta '
+    'sobre el incidente, como si la persona ya te hubiera contestado. '
+    'Elegí siempre la categoría más específica de la lista que describa lo que pasó (Robo, '
+    'Accidente, Persona sospechosa, Violencia, Incendio, Emergencia médica, Vandalismo); usá '
+    '"Otro" únicamente si de verdad ninguna de esas encaja, nunca por defecto. En cuanto tengas '
+    'la categoría y una sola oración que describa qué pasó, eso ya es suficiente: llamá de '
+    'inmediato a la función submit_report con esos datos (no seguí pidiendo más detalles ni '
+    'confirmaciones adicionales) y avisá a la persona que estás enviando el reporte.';
 
 /// Thin WebSocket client for Gemini's Live API (`BidiGenerateContent`).
 /// There is no official Dart SDK for this API, so the message shapes here
@@ -118,7 +130,7 @@ class GeminiLiveService {
             {
               'functionDeclarations': [
                 {
-                  'name': 'submit_report',
+                  'name': submitReportTool,
                   'description': 'Envía el reporte de emergencia una vez reunida suficiente información por voz.',
                   'parameters': {
                     'type': 'OBJECT',
@@ -133,6 +145,16 @@ class GeminiLiveService {
                       },
                     },
                     'required': ['category', 'description'],
+                  },
+                },
+                {
+                  'name': markLocationManuallyTool,
+                  'description':
+                      'Abre un mapa para que el ciudadano marque manualmente el lugar del '
+                      'incidente, usar cuando indique que no se encuentra en el lugar ahora.',
+                  'parameters': {
+                    'type': 'OBJECT',
+                    'properties': <String, dynamic>{},
                   },
                 },
               ],
@@ -158,13 +180,13 @@ class GeminiLiveService {
     });
   }
 
-  void sendToolResponse(String callId, {required bool success}) {
+  void sendToolResponse(String callId, String name, {required bool success}) {
     _send({
       'toolResponse': {
         'functionResponses': [
           {
             'id': callId,
-            'name': 'submit_report',
+            'name': name,
             'response': {'result': success ? 'ok' : 'error'},
           },
         ],
@@ -173,6 +195,12 @@ class GeminiLiveService {
   }
 
   void _send(Map<String, dynamic> message) {
+    // Never log raw audio payloads (base64 realtimeInput chunks flood the
+    // console); every other outgoing message — setup, tool responses — is
+    // rare and worth seeing in full when diagnosing a stuck conversation.
+    if (!message.containsKey('realtimeInput')) {
+      debugPrint('GeminiLiveService: -> ${jsonEncode(message)}');
+    }
     _channel?.sink.add(jsonEncode(message));
   }
 
@@ -207,13 +235,17 @@ class GeminiLiveService {
       final calls = toolCall['functionCalls'] as List<dynamic>? ?? const [];
       for (final call in calls) {
         final callMap = call as Map<String, dynamic>;
-        if (callMap['name'] != 'submit_report') continue;
+        final name = callMap['name'] as String? ?? '';
         final args = callMap['args'] as Map<String, dynamic>? ?? const {};
-        _controller.add(GeminiLiveToolCall(
-          id: callMap['id'] as String? ?? '',
-          category: args['category'] as String? ?? 'Otro',
-          description: args['description'] as String? ?? '',
-        ));
+        final id = callMap['id'] as String? ?? '';
+        if (id.isEmpty) {
+          // Without an id we can't correlate a functionResponse back to this
+          // call, so the model has no way to know it was ever answered —
+          // surface it loudly instead of silently sending a response nobody
+          // can match.
+          debugPrint('GeminiLiveService: tool call "$name" arrived with no id — cannot answer it');
+        }
+        _controller.add(GeminiLiveToolCall(id: id, name: name, args: args));
       }
       return;
     }

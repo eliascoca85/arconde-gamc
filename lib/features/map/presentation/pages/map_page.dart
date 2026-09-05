@@ -5,9 +5,11 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../../../app/theme/index.dart';
 import '../../../../../core/services/location_service.dart';
+import '../../../../../core/services/report_events.dart';
 import '../../../../../data/repositories/emergency_repository.dart';
 import '../../../../../mock/models.dart';
 import '../../../../../shared/widgets/app_map.dart';
+import '../../../../../shared/widgets/auth_gate.dart';
 import '../../../../../shared/widgets/basic_widgets.dart';
 
 class MapPage extends StatefulWidget {
@@ -28,8 +30,9 @@ class _MapPageState extends State<MapPage> {
   @override
   void initState() {
     super.initState();
-    _incidentsFuture = _emergencyRepository.listMineIncidents();
+    _incidentsFuture = _emergencyRepository.listPublicIncidents();
     _loadUserLocation();
+    ReportEvents.submitted.addListener(_onReportSubmitted);
   }
 
   Future<void> _loadUserLocation() async {
@@ -42,8 +45,16 @@ class _MapPageState extends State<MapPage> {
     }
   }
 
+  void _onReportSubmitted() {
+    if (!mounted) return;
+    setState(() {
+      _incidentsFuture = _emergencyRepository.listPublicIncidents();
+    });
+  }
+
   @override
   void dispose() {
+    ReportEvents.submitted.removeListener(_onReportSubmitted);
     _mapController.dispose();
     super.dispose();
   }
@@ -68,13 +79,13 @@ class _MapPageState extends State<MapPage> {
             return Center(
               child: AppEmptyState(
                 icon: Icons.error_outline,
-                title: 'No se pudieron cargar tus incidentes',
+                title: 'No se pudieron cargar los incidentes',
                 subtitle: 'Revisa tu conexión e intenta nuevamente.',
                 action: AppButton(
                   label: 'Reintentar',
                   isExpanded: false,
                   onPressed: () => setState(() {
-                    _incidentsFuture = _emergencyRepository.listMineIncidents();
+                    _incidentsFuture = _emergencyRepository.listPublicIncidents();
                   }),
                 ),
               ),
@@ -166,7 +177,11 @@ class _MapPageState extends State<MapPage> {
       bottom: 100,
       right: AppSpacing.md,
       child: FloatingActionButton.extended(
-        onPressed: () => context.push('/report/create'),
+        onPressed: () async {
+          if (!await ensureAuthenticated(context)) return;
+          if (!mounted) return;
+          context.push('/report/create');
+        },
         backgroundColor: AppColors.secondaryTeal,
         foregroundColor: AppColors.textOnPrimary,
         elevation: AppSpacing.elevationMd,

@@ -3,9 +3,11 @@ import 'package:dio/dio.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/auth_service.dart';
 import '../../core/services/category_override_store.dart';
+import '../../core/services/report_events.dart';
 import '../../mock/models.dart';
 import '../dtos/emergency_dto.dart';
 import '../dtos/emergency_message_dto.dart';
+import '../dtos/evidence_dto.dart';
 import '../mappers.dart';
 import 'citizen_repository.dart';
 
@@ -35,6 +37,25 @@ class EmergencyRepository {
     final data = response.data as Map<String, dynamic>;
     final emergencyJson = data['emergency'] as Map<String, dynamic>? ?? data;
     return EmergencyDto.fromJson(emergencyJson);
+  }
+
+  /// Incidentes recientes de TODOS los ciudadanos, sin requerir sesión.
+  /// El backend no expone el nombre ni contacto del reportante en este
+  /// endpoint, así que se etiquetan como "Comunidad".
+  Future<List<Incident>> listPublicIncidents() async {
+    final response = await _dio.get('/api/public/emergencies/map');
+    final dtos = (response.data['emergencies'] as List<dynamic>)
+        .map((e) => EmergencyDto.fromJson(e as Map<String, dynamic>))
+        .toList();
+    final overrides = await CategoryOverrideStore.loadAll();
+    return dtos
+        .map((dto) => emergencyToIncident(
+              dto,
+              reporterId: '',
+              reporterName: 'Comunidad',
+              typeOverride: overrides[dto.pkEmergency],
+            ))
+        .toList();
   }
 
   Future<List<Incident>> listMineIncidents() async {
@@ -71,6 +92,25 @@ class EmergencyRepository {
 
   String get _reporterId => AuthService.currentCitizenId?.toString() ?? '';
 
+  /// Registra que el ciudadano actual visualizó esta emergencia. El backend
+  /// deduplica por (emergencia, ciudadano), así que llamar esto varias veces
+  /// para el mismo reporte no infla el contador.
+  Future<int> registerView(int emergencyId) async {
+    final response = await _dio.post('/api/citizen/emergencies/$emergencyId/view');
+    final data = response.data as Map<String, dynamic>;
+    return data['viewsCount'] as int? ?? 0;
+  }
+
+  /// Alterna la confirmación (like) del ciudadano actual sobre la emergencia.
+  Future<({bool liked, int likesCount})> toggleLike(int emergencyId) async {
+    final response = await _dio.post('/api/citizen/emergencies/$emergencyId/like');
+    final data = response.data as Map<String, dynamic>;
+    return (
+      liked: data['liked'] as bool? ?? false,
+      likesCount: data['likesCount'] as int? ?? 0,
+    );
+  }
+
   Future<EmergencyDto> report({
     required String description,
     required double latitude,
@@ -85,17 +125,18 @@ class EmergencyRepository {
         'latitude': latitude,
         'longitude': longitude,
         'address': address,
+        if (category != null) 'emergencyTypeName': category.label,
       },
     );
     final data = response.data as Map<String, dynamic>;
     final emergencyJson = data['emergency'] as Map<String, dynamic>? ?? data;
     final dto = EmergencyDto.fromJson(emergencyJson);
-    // The create endpoint has no category field — the backend defaults every
-    // report to "Otro" itself. Persist the chosen category locally so this
-    // device's own map/list reflects it instead (see CategoryOverrideStore).
+    // Also persist locally so this device's own map/list reflects the
+    // category instantly, without waiting on a re-fetch from the backend.
     if (category != null) {
       await CategoryOverrideStore.save(dto.pkEmergency, category.value);
     }
+    ReportEvents.notifySubmitted();
     return dto;
   }
 
@@ -106,17 +147,33 @@ class EmergencyRepository {
         .toList();
   }
 
-  Future<void> sendMessage(int emergencyId, String message) async {
-    await _dio.post(
+  Future<EmergencyMessageDto> sendMessage(int emergencyId, String message) async {
+    final response = await _dio.post(
       '/api/citizen/emergencies/$emergencyId/messages',
       data: {'message': message},
     );
+    return EmergencyMessageDto.fromJson(response.data as Map<String, dynamic>);
   }
 
-  Future<void> uploadEvidence(int emergencyId, File file) async {
+  Future<List<EvidenceDto>> listEvidence(int emergencyId) async {
+    final response = await _dio.get('/api/citizen/emergencies/$emergencyId/evidence');
+    return (response.data['evidences'] as List<dynamic>)
+        .map((e) => EvidenceDto.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<EvidenceDto> uploadEvidence(
+    int emergencyId,
+    File file, {
+    String fileType = 'IMAGE',
+    String? description,
+  }) async {
     final formData = FormData.fromMap({
       'file': await MultipartFile.fromFile(file.path),
+      'fileType': fileType,
+      if (description != null) 'description': description,
     });
-    await _dio.post('/api/citizen/emergencies/$emergencyId/evidence', data: formData);
+    final response = await _dio.post('/api/citizen/emergencies/$emergencyId/evidence', data: formData);
+    return EvidenceDto.fromJson(response.data as Map<String, dynamic>);
   }
 }

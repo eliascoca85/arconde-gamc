@@ -37,6 +37,14 @@ class VoiceAudioService {
   /// re-parsing byte offsets inside the feed callback.
   final List<int> _playbackQueue = [];
 
+  /// True once the native pull callback has found [_playbackQueue] empty and
+  /// returned without calling `FlutterPcmSound.feed()`. Per the plugin's
+  /// contract, the native side only invokes the callback again *once per
+  /// `feed()` call* — so if we ever return empty-handed, the pull loop dies
+  /// until something proactively feeds it again. [feed] checks this flag so
+  /// newly-arrived network audio can restart a stalled loop.
+  bool _nativeAwaitingFeed = false;
+
   Stream<Uint8List> get micChunks => _micController.stream;
 
   Future<void> startCapture() => _openAndStartRecorder();
@@ -113,15 +121,25 @@ class VoiceAudioService {
   }
 
   /// Pull callback fired by the native engine when its buffer is running
-  /// low. Feeds whatever is queued; if nothing is queued yet (network is
-  /// slower than playback) it simply feeds nothing and waits for the next
-  /// callback rather than blocking or feeding silence.
+  /// low or has fully drained. `remainingFrames` is informational only (the
+  /// plugin's own example ignores it) — it is NOT a cap on how much to feed,
+  /// so every call empties the whole queue into the native buffer. If
+  /// nothing is queued yet (network is slower than playback), it marks the
+  /// loop as stalled via [_nativeAwaitingFeed] instead of blocking or
+  /// feeding silence.
   void _onFeed(int remainingFrames) {
+    if (_playbackQueue.isEmpty) {
+      _nativeAwaitingFeed = true;
+      return;
+    }
+    _pushQueueToNative();
+  }
+
+  void _pushQueueToNative() {
     if (_playbackQueue.isEmpty) return;
-    final count = remainingFrames < _playbackQueue.length ? remainingFrames : _playbackQueue.length;
-    if (count <= 0) return;
-    final chunk = _playbackQueue.sublist(0, count);
-    _playbackQueue.removeRange(0, count);
+    final chunk = List<int>.of(_playbackQueue);
+    _playbackQueue.clear();
+    _nativeAwaitingFeed = false;
     FlutterPcmSound.feed(PcmArrayInt16.fromList(chunk));
   }
 
@@ -130,6 +148,9 @@ class VoiceAudioService {
     final byteData = ByteData.sublistView(pcmChunk);
     for (int i = 0; i + 1 < pcmChunk.length; i += 2) {
       _playbackQueue.add(byteData.getInt16(i, Endian.little));
+    }
+    if (_nativeAwaitingFeed) {
+      _pushQueueToNative();
     }
   }
 
@@ -141,6 +162,7 @@ class VoiceAudioService {
   Future<void> stopPlaybackAndFlush() async {
     _isPlaybackActive = false;
     _playbackQueue.clear();
+    _nativeAwaitingFeed = false;
   }
 
   Future<void> dispose() async {

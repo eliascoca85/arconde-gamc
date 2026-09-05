@@ -118,9 +118,11 @@ Incident emergencyToIncident(
     reporterId: reporterId,
     reporterName: reporterName,
     evidenceUrls: const [],
-    viewsCount: 0,
-    confirmationsCount: dto.assignments.length,
+    viewsCount: dto.viewsCount,
+    confirmationsCount: dto.likesCount,
     isNearby: true,
+    isLikedByMe: dto.likedByMe,
+    isAssigned: dto.assignments.isNotEmpty,
   );
 }
 

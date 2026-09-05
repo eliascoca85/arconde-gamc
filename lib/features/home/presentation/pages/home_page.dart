@@ -8,10 +8,12 @@ import '../../../../../core/animations/motion.dart';
 import '../../../../../core/constants/app_constants.dart';
 import '../../../../../core/network/nominatim_service.dart';
 import '../../../../../core/services/location_service.dart';
+import '../../../../../core/services/report_events.dart';
 import '../../../../../core/utils/geojson_parser.dart';
 import '../../../../../data/repositories/emergency_repository.dart';
 import '../../../../../mock/models.dart';
 import '../../../../../shared/widgets/app_map.dart';
+import '../../../../../shared/widgets/auth_gate.dart';
 import '../../../../../shared/widgets/basic_widgets.dart';
 import '../widgets/map_controls.dart';
 import '../widgets/map_view.dart';
@@ -49,14 +51,23 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    _incidentsFuture = _emergencyRepository.listMineIncidents();
+    _incidentsFuture = _emergencyRepository.listPublicIncidents();
     _loadUserLocation();
+    ReportEvents.submitted.addListener(_onReportSubmitted);
   }
 
   @override
   void dispose() {
+    ReportEvents.submitted.removeListener(_onReportSubmitted);
     _mapController.dispose();
     super.dispose();
+  }
+
+  void _onReportSubmitted() {
+    if (!mounted) return;
+    setState(() {
+      _incidentsFuture = _emergencyRepository.listPublicIncidents();
+    });
   }
 
   Future<void> _loadUserLocation() async {
@@ -77,7 +88,9 @@ class _HomePageState extends State<HomePage> {
     context.push('/incident/${incident.id}');
   }
 
-  void _onReportPressed() {
+  void _onReportPressed() async {
+    if (!await ensureAuthenticated(context)) return;
+    if (!mounted) return;
     context.push(AppRouter.aiReport);
   }
 
@@ -245,13 +258,13 @@ class _HomePageState extends State<HomePage> {
           else if (snapshot.hasError)
             AppEmptyState(
               icon: Icons.error_outline,
-              title: 'No se pudieron cargar tus incidentes',
+              title: 'No se pudieron cargar los incidentes',
               subtitle: 'Revisa tu conexión e intenta nuevamente.',
               action: AppButton(
                 label: 'Reintentar',
                 isExpanded: false,
                 onPressed: () => setState(() {
-                  _incidentsFuture = _emergencyRepository.listMineIncidents();
+                  _incidentsFuture = _emergencyRepository.listPublicIncidents();
                 }),
               ),
             )

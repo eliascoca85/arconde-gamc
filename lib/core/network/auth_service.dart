@@ -20,6 +20,14 @@ class AuthService {
   static final ValueNotifier<bool> isLoggedIn = ValueNotifier<bool>(false);
   static int? currentCitizenId;
 
+  /// Bumped whenever a "skipped auth" user tries to do something that
+  /// requires an account, so the top-level app shell can bring back the
+  /// login/register screen. A counter (not a bool) so repeated requests
+  /// after a cancelled login still notify listeners.
+  static final ValueNotifier<int> loginRequests = ValueNotifier<int>(0);
+
+  static void requestLogin() => loginRequests.value++;
+
   static Future<void> restoreSession() async {
     await ApiClient.instance.ensureInitialized();
     final prefs = await SharedPreferences.getInstance();

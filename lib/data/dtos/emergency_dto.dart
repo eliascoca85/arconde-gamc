@@ -96,6 +96,9 @@ class EmergencyDto {
   final EmergencyTypeDto type;
   final List<EmergencyAssignmentDto> assignments;
   final List<EmergencyLocationDto> locations;
+  final int viewsCount;
+  final int likesCount;
+  final bool likedByMe;
 
   EmergencyDto({
     required this.pkEmergency,
@@ -110,6 +113,9 @@ class EmergencyDto {
     required this.type,
     required this.assignments,
     required this.locations,
+    this.viewsCount = 0,
+    this.likesCount = 0,
+    this.likedByMe = false,
   });
 
   factory EmergencyDto.fromJson(Map<String, dynamic> json) {
@@ -133,6 +139,9 @@ class EmergencyDto {
       locations: (json['tbemergencylocations'] as List<dynamic>? ?? [])
           .map((e) => EmergencyLocationDto.fromJson(e as Map<String, dynamic>))
           .toList(),
+      viewsCount: json['viewsCount'] as int? ?? 0,
+      likesCount: json['likesCount'] as int? ?? 0,
+      likedByMe: json['likedByMe'] as bool? ?? false,
     );
   }
 }

@@ -2,12 +2,13 @@ import 'package:dio/dio.dart';
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 import 'package:path_provider/path_provider.dart';
+import '../config/env.dart';
 
 class ApiClient {
   ApiClient._();
   static final ApiClient instance = ApiClient._();
 
-  static const String baseUrl = 'https://sos-24-gamc.vercel.app';
+  static final String baseUrl = Env.apiBaseUrl;
 
   late final Dio dio = Dio(
     BaseOptions(

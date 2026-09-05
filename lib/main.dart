@@ -31,6 +31,19 @@ class _ArconteAppState extends State<ArconteApp> {
     // Any failure (network, storage, plugin channel, etc.) just leaves the
     // user on the login/skip screen instead of hanging on a loading state.
     AuthService.restoreSession().catchError((_) {});
+    AuthService.loginRequests.addListener(_onLoginRequested);
+  }
+
+  @override
+  void dispose() {
+    AuthService.loginRequests.removeListener(_onLoginRequested);
+    super.dispose();
+  }
+
+  void _onLoginRequested() {
+    if (!AuthService.isLoggedIn.value) {
+      setState(() => _skippedAuth = false);
+    }
   }
 
   void _onSkip() {

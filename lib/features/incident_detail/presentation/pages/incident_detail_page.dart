@@ -1,11 +1,19 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../../../app/theme/index.dart';
 import '../../../../../core/animations/motion.dart';
+import '../../../../../core/network/api_client.dart';
+import '../../../../../core/network/auth_service.dart';
+import '../../../../../data/dtos/emergency_message_dto.dart';
+import '../../../../../data/dtos/evidence_dto.dart';
 import '../../../../../data/repositories/emergency_repository.dart';
 import '../../../../../mock/models.dart';
+import '../../../../../shared/widgets/auth_gate.dart';
 import '../../../../../shared/widgets/basic_widgets.dart';
+import '../widgets/incident_comments_section.dart';
 import '../widgets/incident_timeline.dart';
 import '../widgets/incident_header.dart';
 
@@ -20,14 +28,27 @@ class IncidentDetailPage extends StatefulWidget {
 
 class _IncidentDetailPageState extends State<IncidentDetailPage> {
   final _emergencyRepository = EmergencyRepository();
+  final _picker = ImagePicker();
+  final _commentController = TextEditingController();
   Incident? _incident;
   bool _isLoading = true;
   bool _hasError = false;
+  bool _isTogglingLike = false;
+  final List<EmergencyMessageDto> _messages = [];
+  final List<EvidenceDto> _evidences = [];
+  bool _isSendingComment = false;
+  bool _isUploadingEvidence = false;
 
   @override
   void initState() {
     super.initState();
     _loadIncident();
+  }
+
+  @override
+  void dispose() {
+    _commentController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadIncident() async {
@@ -52,6 +73,11 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
         _incident = incident;
         _isLoading = false;
       });
+      if (AuthService.isLoggedIn.value) {
+        _registerView(id);
+      }
+      _loadMessages(id);
+      _loadEvidence(id);
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -59,6 +85,177 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
         _hasError = true;
       });
     }
+  }
+
+  Future<void> _registerView(int id) async {
+    try {
+      final viewsCount = await _emergencyRepository.registerView(id);
+      if (!mounted || _incident == null) return;
+      setState(() {
+        _incident = _incident!.copyWith(viewsCount: viewsCount);
+      });
+    } catch (_) {
+      // La vista es informativa; si falla, no interrumpimos la carga del reporte.
+    }
+  }
+
+  Future<void> _loadMessages(int id) async {
+    try {
+      final messages = await _emergencyRepository.listMessages(id);
+      if (!mounted) return;
+      setState(() {
+        _messages
+          ..clear()
+          ..addAll(messages);
+      });
+    } catch (_) {
+      // Los comentarios son un complemento; si fallan, no bloqueamos el reporte.
+    }
+  }
+
+  Future<void> _loadEvidence(int id) async {
+    try {
+      final evidences = await _emergencyRepository.listEvidence(id);
+      if (!mounted) return;
+      setState(() {
+        _evidences
+          ..clear()
+          ..addAll(evidences);
+      });
+    } catch (_) {
+      // La evidencia es un complemento; si falla, no bloqueamos el reporte.
+    }
+  }
+
+  Future<void> _sendComment() async {
+    final id = int.tryParse(widget.incidentId);
+    final text = _commentController.text.trim();
+    if (id == null || text.isEmpty) return;
+    if (!await ensureAuthenticated(context, action: 'comentar en este reporte')) return;
+    if (!mounted) return;
+
+    setState(() => _isSendingComment = true);
+    try {
+      final sent = await _emergencyRepository.sendMessage(id, text);
+      if (!mounted) return;
+      setState(() {
+        _messages.add(sent);
+        _commentController.clear();
+        _isSendingComment = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSendingComment = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('No se pudo enviar el comentario. Intenta nuevamente.'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  Future<void> _addEvidence(ImageSource source) async {
+    final id = int.tryParse(widget.incidentId);
+    if (id == null) return;
+    if (!await ensureAuthenticated(context, action: 'agregar evidencia a este reporte')) return;
+    if (!mounted) return;
+
+    XFile? image;
+    try {
+      image = await _picker.pickImage(source: source, maxWidth: 1920, maxHeight: 1080, imageQuality: 85);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: const Text('No se pudo abrir la cámara/galería.'), behavior: SnackBarBehavior.floating),
+      );
+      return;
+    }
+    if (image == null) return;
+
+    setState(() => _isUploadingEvidence = true);
+    try {
+      final evidence = await _emergencyRepository.uploadEvidence(id, File(image.path));
+      if (!mounted) return;
+      setState(() {
+        _evidences.insert(0, evidence);
+        _isUploadingEvidence = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isUploadingEvidence = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('No se pudo subir la evidencia. Intenta nuevamente.'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  void _showAddEvidenceOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        decoration: BoxDecoration(
+          color: AppColors.backgroundPrimary,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(AppSpacing.borderRadiusXl)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              margin: const EdgeInsets.only(bottom: AppSpacing.md),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.borderSecondary,
+                borderRadius: BorderRadius.circular(AppSpacing.borderRadiusFull),
+              ),
+            ),
+            Text('Agregar evidencia', style: AppTextStyles.titleMedium),
+            const SizedBox(height: AppSpacing.lg),
+            Row(
+              children: [
+                Expanded(
+                  child: AppButton(
+                    label: 'Cámara',
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _addEvidence(ImageSource.camera);
+                    },
+                    icon: Icons.camera_alt,
+                    isExpanded: true,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: AppOutlinedButton(
+                    label: 'Galería',
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _addEvidence(ImageSource.gallery);
+                    },
+                    icon: Icons.photo_library,
+                    isExpanded: true,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: MediaQuery.of(context).padding.bottom),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _resolveMediaUrl(String url) {
+    if (url.startsWith('http')) return url;
+    return '${ApiClient.baseUrl}$url';
   }
 
   @override
@@ -99,7 +296,11 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  IncidentHeader(incident: _incident!).staggerChild(0),
+                  IncidentHeader(
+                    incident: _incident!,
+                    onLikeTap: _toggleLike,
+                    isTogglingLike: _isTogglingLike,
+                  ).staggerChild(0),
                   const SizedBox(height: AppSpacing.lg),
                   _buildDescription().staggerChild(1),
                   const SizedBox(height: AppSpacing.lg),
@@ -107,9 +308,16 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
                   const SizedBox(height: AppSpacing.lg),
                   _buildEvidenceSection().staggerChild(3),
                   const SizedBox(height: AppSpacing.lg),
-                  IncidentTimeline(incident: _incident!).staggerChild(4),
+                  IncidentCommentsSection(
+                    messages: _messages,
+                    controller: _commentController,
+                    isSending: _isSendingComment,
+                    onSend: _sendComment,
+                  ).staggerChild(4),
                   const SizedBox(height: AppSpacing.lg),
-                  _buildActions().staggerChild(5),
+                  IncidentTimeline(incident: _incident!).staggerChild(5),
+                  const SizedBox(height: AppSpacing.lg),
+                  _buildActions().staggerChild(6),
                   const SizedBox(height: AppSpacing.xl),
                 ],
               ),
@@ -304,29 +512,40 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
   }
 
   Widget _buildEvidenceSection() {
-    if (_incident!.evidenceUrls.isEmpty) {
+    if (_evidences.isEmpty) {
       return AppCard(
         padding: const EdgeInsets.all(AppSpacing.md),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              decoration: BoxDecoration(
-                color: AppColors.textTertiary.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(AppSpacing.borderRadiusMd),
-              ),
-              child: Icon(Icons.photo_library_outlined, size: AppSpacing.iconLg, color: AppColors.textTertiary),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: AppColors.textTertiary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(AppSpacing.borderRadiusMd),
+                  ),
+                  child: Icon(Icons.photo_library_outlined, size: AppSpacing.iconLg, color: AppColors.textTertiary),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Sin evidencia', style: AppTextStyles.titleMedium),
+                      const SizedBox(height: AppSpacing.xs),
+                      Text('Este reporte no tiene fotos adjuntas', style: AppTextStyles.bodySmallSecondary),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Sin evidencia', style: AppTextStyles.titleMedium),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text('Este reporte no tiene fotos o videos adjuntos', style: AppTextStyles.bodySmallSecondary),
-                ],
-              ),
+            const SizedBox(height: AppSpacing.md),
+            AppOutlinedButton(
+              label: _isUploadingEvidence ? 'Subiendo...' : 'Agregar evidencia',
+              onPressed: _isUploadingEvidence ? null : _showAddEvidenceOptions,
+              icon: Icons.add_a_photo_outlined,
             ),
           ],
         ),
@@ -347,7 +566,7 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
                 borderRadius: BorderRadius.circular(AppSpacing.borderRadiusFull),
               ),
               child: Text(
-                '${_incident!.evidenceUrls.length} archivo(s)',
+                '${_evidences.length} archivo(s)',
                 style: AppTextStyles.labelSmall.copyWith(color: AppColors.primaryBlue),
               ),
             ),
@@ -358,9 +577,13 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
           height: 140,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            itemCount: _incident!.evidenceUrls.length,
+            itemCount: _evidences.length + 1,
             separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.md),
             itemBuilder: (context, index) {
+              if (index == _evidences.length) {
+                return _buildAddEvidenceCard().staggerChild(index, distance: 0.15);
+              }
+              final evidence = _evidences[index];
               return Hero(
                 tag: 'evidence_${_incident!.id}_$index',
                 child: ClipRRect(
@@ -371,7 +594,7 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
                       border: Border.all(color: AppColors.borderPrimary, width: 0.5),
                     ),
                     child: CachedNetworkImage(
-                      imageUrl: _incident!.evidenceUrls[index],
+                      imageUrl: _resolveMediaUrl(evidence.fileUrl),
                       fit: BoxFit.cover,
                       placeholder: (context, url) => Container(
                         color: AppColors.surfaceSecondary,
@@ -396,36 +619,76 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
     );
   }
 
-  Widget _buildActions() {
-    return Row(
-      children: [
-        Expanded(
-          child: AppOutlinedButton(
-            label: 'Confirmar aviso',
-            onPressed: _confirmAlert,
-            icon: Icons.check_circle_outline,
-          ),
+  Widget _buildAddEvidenceCard() {
+    return GestureDetector(
+      onTap: _isUploadingEvidence ? null : _showAddEvidenceOptions,
+      child: Container(
+        width: 120,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceSecondary,
+          borderRadius: BorderRadius.circular(AppSpacing.borderRadiusLg),
+          border: Border.all(color: AppColors.primaryBlue.withValues(alpha: 0.4), width: 1.5),
         ),
-        const SizedBox(width: AppSpacing.md),
-        Expanded(
-          child: AppButton(
-            label: 'Ver ruta',
-            onPressed: _viewRoute,
-            icon: Icons.navigation,
-          ),
+        child: Center(
+          child: _isUploadingEvidence
+              ? AppLoadingIndicator(color: AppColors.primaryBlue)
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.add_a_photo_outlined, color: AppColors.primaryBlue, size: AppSpacing.iconLg),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text('Agregar', style: AppTextStyles.labelSmall.copyWith(color: AppColors.primaryBlue)),
+                  ],
+                ),
         ),
-      ],
+      ),
     );
   }
 
-  void _confirmAlert() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Gracias por confirmar el aviso'),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: AppColors.resolvedGreen,
-      ),
+  Widget _buildActions() {
+    return AppButton(
+      label: 'Ver ruta',
+      onPressed: _viewRoute,
+      icon: Icons.navigation,
     );
+  }
+
+  Future<void> _toggleLike() async {
+    final id = int.tryParse(widget.incidentId);
+    if (id == null || _incident == null) return;
+    if (!await ensureAuthenticated(context, action: 'confirmar este aviso')) return;
+    if (!mounted) return;
+
+    setState(() => _isTogglingLike = true);
+    try {
+      final result = await _emergencyRepository.toggleLike(id);
+      if (!mounted) return;
+      setState(() {
+        _incident = _incident!.copyWith(
+          isLikedByMe: result.liked,
+          confirmationsCount: result.likesCount,
+        );
+        _isTogglingLike = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result.liked ? 'Gracias por confirmar el aviso' : 'Confirmación retirada'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: result.liked ? AppColors.resolvedGreen : AppColors.textTertiary,
+        ),
+      );
+    } catch (e) {
+      debugPrint('toggleLike failed for emergency $id: $e');
+      if (!mounted) return;
+      setState(() => _isTogglingLike = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No se pudo registrar la confirmación: $e'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 
   void _viewRoute() {

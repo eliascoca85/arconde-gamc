@@ -34,7 +34,7 @@ class CategorySelectionStep extends StatelessWidget {
             physics: const NeverScrollableScrollPhysics(),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
-              childAspectRatio: 1.15,
+              childAspectRatio: 0.88,
               crossAxisSpacing: AppSpacing.md,
               mainAxisSpacing: AppSpacing.md,
             ),
@@ -102,9 +102,10 @@ class CategoryCard extends StatelessWidget {
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              padding: const EdgeInsets.all(AppSpacing.md),
+              padding: const EdgeInsets.all(AppSpacing.sm),
               decoration: BoxDecoration(
                 color: isSelected
                     ? AppColors.textOnPrimary.withValues(alpha: 0.2)
@@ -117,24 +118,30 @@ class CategoryCard extends StatelessWidget {
                 color: isSelected ? AppColors.textOnPrimary : category.color,
               ),
             ),
-            const SizedBox(height: AppSpacing.md),
-            Text(
-              category.title,
-              style: AppTextStyles.titleMedium.copyWith(
-                color: isSelected ? AppColors.textOnPrimary : AppColors.textPrimary,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+            const SizedBox(height: AppSpacing.sm),
+            Flexible(
+              child: Text(
+                category.title,
+                style: AppTextStyles.titleMedium.copyWith(
+                  color: isSelected ? AppColors.textOnPrimary : AppColors.textPrimary,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
-              textAlign: TextAlign.center,
             ),
             const SizedBox(height: AppSpacing.xs),
-            Text(
-              category.description,
-              style: AppTextStyles.bodySmall.copyWith(
-                color: isSelected ? AppColors.textOnPrimary.withValues(alpha: 0.8) : AppColors.textTertiary,
+            Flexible(
+              child: Text(
+                category.description,
+                style: AppTextStyles.bodySmall.copyWith(
+                  color: isSelected ? AppColors.textOnPrimary.withValues(alpha: 0.8) : AppColors.textTertiary,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
