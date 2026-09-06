@@ -131,9 +131,10 @@ class _CreateReportPageState extends State<CreateReportPage> {
             File(path),
             fileType: inferEvidenceFileType(path),
           );
-        } catch (_) {
+        } catch (e, st) {
           // Una evidencia fallida no debe bloquear la confirmación del
           // reporte, pero sí debe avisarse (antes fallaba en silencio).
+          debugPrint('uploadEvidence falló para $path: $e\n$st');
           failedEvidenceCount++;
         }
       }

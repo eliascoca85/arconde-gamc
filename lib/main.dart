@@ -154,13 +154,15 @@ class _LoginScreenState extends State<_LoginScreen> {
         );
       }
     } on AuthException catch (e) {
+      debugPrint('AuthService.login/register falló (AuthException): ${e.message}');
       if (!mounted) return;
       setState(() {
         _errorMessage = e.message;
         _isSubmitting = false;
       });
       return;
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('AuthService.login/register falló: $e\n$st');
       if (!mounted) return;
       setState(() {
         _errorMessage = 'No se pudo conectar. Revisa tu conexión e intenta nuevamente.';
