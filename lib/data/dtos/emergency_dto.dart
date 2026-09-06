@@ -83,6 +83,22 @@ class EmergencyAssignmentDto {
   }
 }
 
+class EmergencyReporterDto {
+  final String firstName;
+  final String lastName;
+
+  EmergencyReporterDto({required this.firstName, required this.lastName});
+
+  String get fullName => '$firstName $lastName'.trim();
+
+  factory EmergencyReporterDto.fromJson(Map<String, dynamic> json) {
+    return EmergencyReporterDto(
+      firstName: json['firstName'] as String? ?? '',
+      lastName: json['lastName'] as String? ?? '',
+    );
+  }
+}
+
 class EmergencyDto {
   final int pkEmergency;
   final String emergencyCode;
@@ -94,6 +110,7 @@ class EmergencyDto {
   final DateTime? resolvedAt;
   final DateTime updatedAt;
   final EmergencyTypeDto type;
+  final EmergencyReporterDto? reporter;
   final List<EmergencyAssignmentDto> assignments;
   final List<EmergencyLocationDto> locations;
   final int viewsCount;
@@ -111,6 +128,7 @@ class EmergencyDto {
     this.resolvedAt,
     required this.updatedAt,
     required this.type,
+    this.reporter,
     required this.assignments,
     required this.locations,
     this.viewsCount = 0,
@@ -133,6 +151,9 @@ class EmergencyDto {
       type: json['tbemergencytypes'] != null
           ? EmergencyTypeDto.fromJson(json['tbemergencytypes'] as Map<String, dynamic>)
           : EmergencyTypeDto(name: 'Otro', code: 'OTRO'),
+      reporter: json['tbcitizens'] != null
+          ? EmergencyReporterDto.fromJson(json['tbcitizens'] as Map<String, dynamic>)
+          : null,
       assignments: (json['tbemergencyassignments'] as List<dynamic>? ?? [])
           .map((e) => EmergencyAssignmentDto.fromJson(e as Map<String, dynamic>))
           .toList(),

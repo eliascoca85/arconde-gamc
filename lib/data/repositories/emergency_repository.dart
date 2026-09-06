@@ -101,13 +101,16 @@ class EmergencyRepository {
   }
 
   Future<Incident> getDetailIncident(int id) async {
-    final reporterName = await _reporterName();
     final dto = await _getDto(id);
     final overrides = await CategoryOverrideStore.loadAll();
     return emergencyToIncident(
       dto,
-      reporterId: _reporterId,
-      reporterName: reporterName,
+      // El reportante real viene del propio registro (dto.reporter), no del
+      // ciudadano que está viendo el detalle — antes se usaba el perfil de la
+      // sesión actual, por lo que cualquier reporte ajeno mostraba el nombre
+      // de quien lo estuviera mirando.
+      reporterId: '',
+      reporterName: dto.reporter?.fullName.isNotEmpty == true ? dto.reporter!.fullName : 'Ciudadano',
       typeOverride: overrides[dto.pkEmergency],
     );
   }
