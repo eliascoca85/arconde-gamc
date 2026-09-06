@@ -3,10 +3,6 @@
 class Env {
   Env._();
 
-  static const String geminiApiKey = String.fromEnvironment('GEMINI_API_KEY');
-
-  static bool get hasGeminiApiKey => geminiApiKey.isNotEmpty;
-
   /// Backend host. Defaults to production (Vercel) so a plain `flutter run`
   /// never accidentally talks to a developer's laptop. Override locally via
   /// `API_BASE_URL` in `env.json` — e.g. `http://10.0.2.2:3000` for the
@@ -20,5 +16,5 @@ class Env {
   static const String _rawApiBaseUrl = String.fromEnvironment('API_BASE_URL');
 
   static String get apiBaseUrl =>
-      _rawApiBaseUrl.isEmpty ? 'https://sos-24-gamc.vercel.app' : _rawApiBaseUrl;
+      _rawApiBaseUrl.isEmpty ? 'https://sos-24-gamc-khaki.vercel.app' : _rawApiBaseUrl;
 }

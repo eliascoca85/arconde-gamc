@@ -33,7 +33,16 @@ class AppRouter {
       GoRoute(
         path: map,
         name: 'map',
-        builder: (context, state) => const MapPage(),
+        builder: (context, state) {
+          final lat = double.tryParse(state.uri.queryParameters['lat'] ?? '');
+          final lng = double.tryParse(state.uri.queryParameters['lng'] ?? '');
+          final incidentId = state.uri.queryParameters['incidentId'];
+          return MapPage(
+            focusLatitude: lat,
+            focusLongitude: lng,
+            focusIncidentId: incidentId,
+          );
+        },
       ),
       GoRoute(
         path: incidentDetail,

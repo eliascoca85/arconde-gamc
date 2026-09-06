@@ -65,19 +65,16 @@ flutter build apk --debug
 ### Reporte por voz (Gemini Live)
 
 El botón "Reportar" abre una conversación de voz en tiempo real con un agente
-Gemini que arma el reporte por vos (`AiReportPage`). Necesita una API key de
-Gemini (gratis en [Google AI Studio](https://aistudio.google.com) → "Get API
-key"), inyectada en tiempo de build — nunca hardcodeada en el código:
+Gemini que arma el reporte por vos (`AiReportPage`). La API key real de
+Gemini vive únicamente en el backend (`sos-24-gamc`, variable de entorno
+`GEMINI_API_KEY`) — la app nunca la recibe ni la guarda: antes de conectar,
+pide al backend un token efímero de un solo uso (`/api/citizen/gemini/live-token`,
+requiere sesión de ciudadano) y se conecta a Gemini Live con ese token.
 
-```bash
-cp env.json.example env.json
-# editar env.json y pegar la key en GEMINI_API_KEY
-flutter run --dart-define-from-file=env.json
-```
-
-Sin `env.json`, la pantalla de voz muestra un aviso de "no configurado" con
-un enlace al wizard manual (`CreateReportPage`), que sigue disponible sin
-necesidad de key.
+Si el backend no tiene `GEMINI_API_KEY` configurada, o el ciudadano no tiene
+sesión iniciada, la pantalla de voz muestra un aviso de error con un enlace
+al wizard manual (`CreateReportPage`), que sigue disponible sin depender de
+la voz.
 
 ## Dependencias principales
 

@@ -11,6 +11,28 @@ import '../dtos/evidence_dto.dart';
 import '../mappers.dart';
 import 'citizen_repository.dart';
 
+const _videoExtensions = {'mp4', 'mov', 'm4v', 'avi', 'mkv', 'webm', '3gp'};
+
+/// Deriva el `fileType` ('IMAGE' o 'VIDEO') que espera el backend a partir de
+/// la extensión del archivo/URL de evidencia.
+String inferEvidenceFileType(String path) {
+  final dotIndex = path.lastIndexOf('.');
+  if (dotIndex == -1) return 'IMAGE';
+  final ext = path.substring(dotIndex + 1).toLowerCase();
+  return _videoExtensions.contains(ext) ? 'VIDEO' : 'IMAGE';
+}
+
+/// URL de un frame estático (JPG) de un video ya subido a Cloudinary:
+/// Cloudinary sirve automáticamente un frame cuando se pide un formato de
+/// imagen sobre la misma URL de un video, así que solo hace falta cambiar la
+/// extensión. Devuelve null para rutas locales (todavía no subidas).
+String? cloudinaryVideoThumbnailUrl(String url) {
+  if (!url.startsWith('http')) return null;
+  final dotIndex = url.lastIndexOf('.');
+  if (dotIndex == -1) return null;
+  return '${url.substring(0, dotIndex)}.jpg';
+}
+
 class EmergencyRepository {
   final Dio _dio = ApiClient.instance.dio;
   final CitizenRepository _citizenRepository = CitizenRepository();
@@ -175,5 +197,14 @@ class EmergencyRepository {
     });
     final response = await _dio.post('/api/citizen/emergencies/$emergencyId/evidence', data: formData);
     return EvidenceDto.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  /// Token efímero de corta duración para conectar con Gemini Live sin que
+  /// la app móvil tenga que guardar la llave real de Gemini: el backend la
+  /// usa server-side para emitir este token de un solo uso.
+  Future<String> fetchGeminiLiveToken() async {
+    final response = await _dio.post('/api/citizen/gemini/live-token');
+    final data = response.data as Map<String, dynamic>;
+    return data['token'] as String;
   }
 }

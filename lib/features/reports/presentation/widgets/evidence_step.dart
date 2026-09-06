@@ -3,6 +3,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../../../app/theme/index.dart';
 import '../../../../../core/animations/motion.dart';
+import '../../../../../data/repositories/emergency_repository.dart'
+    show cloudinaryVideoThumbnailUrl, inferEvidenceFileType;
 import '../../../../../shared/widgets/basic_widgets.dart';
 
 class EvidenceStep extends StatefulWidget {
@@ -105,36 +107,39 @@ class _EvidenceStepState extends State<EvidenceStep> {
   Widget _buildEvidenceItem(int index) {
     final url = _localEvidence[index];
     final isLocal = !url.startsWith('http');
+    final isVideo = inferEvidenceFileType(url) == 'VIDEO';
 
     return Stack(
       children: [
         ClipRRect(
           borderRadius: BorderRadius.circular(AppSpacing.borderRadiusMd),
-          child: isLocal
-              ? Image.asset(
-                  url,
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                  height: double.infinity,
-                  errorBuilder: (_, __, ___) => Container(
-                    color: AppColors.surfaceSecondary,
-                    child: Icon(Icons.broken_image_outlined, size: AppSpacing.iconLg, color: AppColors.textTertiary),
-                  ),
-                )
-              : CachedNetworkImage(
-                  imageUrl: url,
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                  height: double.infinity,
-                  placeholder: (context, url) => Container(
-                    color: AppColors.surfaceSecondary,
-                    child: Center(child: AppLoadingIndicator(color: AppColors.primaryBlue)),
-                  ),
-                  errorWidget: (context, url, error) => Container(
-                    color: AppColors.surfaceSecondary,
-                    child: Icon(Icons.broken_image_outlined, size: AppSpacing.iconLg, color: AppColors.textTertiary),
-                  ),
-                ),
+          child: isVideo
+              ? _buildVideoThumbnail(url)
+              : isLocal
+                  ? Image.asset(
+                      url,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      height: double.infinity,
+                      errorBuilder: (_, __, ___) => Container(
+                        color: AppColors.surfaceSecondary,
+                        child: Icon(Icons.broken_image_outlined, size: AppSpacing.iconLg, color: AppColors.textTertiary),
+                      ),
+                    )
+                  : CachedNetworkImage(
+                      imageUrl: url,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      height: double.infinity,
+                      placeholder: (context, url) => Container(
+                        color: AppColors.surfaceSecondary,
+                        child: Center(child: AppLoadingIndicator(color: AppColors.primaryBlue)),
+                      ),
+                      errorWidget: (context, url, error) => Container(
+                        color: AppColors.surfaceSecondary,
+                        child: Icon(Icons.broken_image_outlined, size: AppSpacing.iconLg, color: AppColors.textTertiary),
+                      ),
+                    ),
         ),
         Positioned(
           top: AppSpacing.xs,
@@ -150,6 +155,29 @@ class _EvidenceStepState extends State<EvidenceStep> {
               child: Icon(Icons.close, size: AppSpacing.iconXs, color: AppColors.textOnPrimary),
             ),
           ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildVideoThumbnail(String url) {
+    final thumbnailUrl = cloudinaryVideoThumbnailUrl(url);
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (thumbnailUrl != null)
+          CachedNetworkImage(
+            imageUrl: thumbnailUrl,
+            fit: BoxFit.cover,
+            placeholder: (context, url) => Container(color: AppColors.surfaceSecondary),
+            errorWidget: (context, url, error) => Container(color: AppColors.surfaceSecondary),
+          )
+        else
+          Container(color: AppColors.surfaceSecondary),
+        Container(
+          color: Colors.black26,
+          alignment: Alignment.center,
+          child: const Icon(Icons.play_circle_fill, size: 32, color: Colors.white),
         ),
       ],
     );
@@ -184,22 +212,46 @@ class _EvidenceStepState extends State<EvidenceStep> {
   }
 
   Widget _buildAddEvidenceButtons() {
-    return Row(
+    return Column(
       children: [
-        Expanded(
-          child: AppOutlinedButton(
-            label: 'Tomar foto',
-            onPressed: () => _pickImage(ImageSource.camera),
-            icon: Icons.camera_alt,
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: AppOutlinedButton(
+                label: 'Tomar foto',
+                onPressed: () => _pickImage(ImageSource.camera),
+                icon: Icons.camera_alt,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: AppOutlinedButton(
+                label: 'Seleccionar de galería',
+                onPressed: () => _pickImage(ImageSource.gallery),
+                icon: Icons.photo_library,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: AppSpacing.md),
-        Expanded(
-          child: AppOutlinedButton(
-            label: 'Seleccionar de galería',
-            onPressed: () => _pickImage(ImageSource.gallery),
-            icon: Icons.photo_library,
-          ),
+        const SizedBox(height: AppSpacing.md),
+        Row(
+          children: [
+            Expanded(
+              child: AppOutlinedButton(
+                label: 'Grabar video',
+                onPressed: () => _pickVideo(ImageSource.camera),
+                icon: Icons.videocam,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: AppOutlinedButton(
+                label: 'Video de galería',
+                onPressed: () => _pickVideo(ImageSource.gallery),
+                icon: Icons.video_library,
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -219,7 +271,7 @@ class _EvidenceStepState extends State<EvidenceStep> {
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Text(
-              'Máximo 5 archivos. Formatos: JPG, PNG, MP4. Tamaño máx: 10MB c/u.',
+              'Máximo 5 archivos. Formatos: JPG, PNG, MP4. Video máx: 60s. Tamaño máx: 10MB c/u.',
               style: AppTextStyles.bodySmall.copyWith(color: AppColors.primaryBlue),
             ),
           ),
@@ -247,6 +299,28 @@ class _EvidenceStepState extends State<EvidenceStep> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error al seleccionar imagen'), behavior: SnackBarBehavior.floating),
+        );
+      }
+    }
+  }
+
+  Future<void> _pickVideo(ImageSource source) async {
+    try {
+      final XFile? video = await _picker.pickVideo(
+        source: source,
+        maxDuration: const Duration(seconds: 60),
+      );
+
+      if (video != null) {
+        setState(() {
+          _localEvidence.add(video.path);
+          widget.onEvidenceChanged(_localEvidence);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al seleccionar video'), behavior: SnackBarBehavior.floating),
         );
       }
     }
@@ -287,7 +361,7 @@ class _EvidenceStepState extends State<EvidenceStep> {
               children: [
                 Expanded(
                   child: AppButton(
-                    label: 'Cámara',
+                    label: 'Foto: cámara',
                     onPressed: () {
                       Navigator.pop(context);
                       _pickImage(ImageSource.camera);
@@ -299,12 +373,40 @@ class _EvidenceStepState extends State<EvidenceStep> {
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: AppOutlinedButton(
-                    label: 'Galería',
+                    label: 'Foto: galería',
                     onPressed: () {
                       Navigator.pop(context);
                       _pickImage(ImageSource.gallery);
                     },
                     icon: Icons.photo_library,
+                    isExpanded: true,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Row(
+              children: [
+                Expanded(
+                  child: AppButton(
+                    label: 'Video: cámara',
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _pickVideo(ImageSource.camera);
+                    },
+                    icon: Icons.videocam,
+                    isExpanded: true,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: AppOutlinedButton(
+                    label: 'Video: galería',
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _pickVideo(ImageSource.gallery);
+                    },
+                    icon: Icons.video_library,
                     isExpanded: true,
                   ),
                 ),

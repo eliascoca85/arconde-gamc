@@ -125,7 +125,11 @@ class _CreateReportPageState extends State<CreateReportPage> {
       final localEvidence = _evidenceUrls.where((url) => !url.startsWith('http'));
       for (final path in localEvidence) {
         try {
-          await _emergencyRepository.uploadEvidence(emergency.pkEmergency, File(path));
+          await _emergencyRepository.uploadEvidence(
+            emergency.pkEmergency,
+            File(path),
+            fileType: inferEvidenceFileType(path),
+          );
         } catch (_) {
           // Evidence upload failures shouldn't block the report confirmation.
         }

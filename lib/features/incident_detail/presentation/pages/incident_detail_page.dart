@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../../../../../app/routes/app_router.dart';
 import '../../../../../app/theme/index.dart';
 import '../../../../../core/animations/motion.dart';
 import '../../../../../core/network/api_client.dart';
@@ -13,6 +14,7 @@ import '../../../../../data/repositories/emergency_repository.dart';
 import '../../../../../mock/models.dart';
 import '../../../../../shared/widgets/auth_gate.dart';
 import '../../../../../shared/widgets/basic_widgets.dart';
+import '../../../../../shared/widgets/media_viewer_page.dart';
 import '../widgets/incident_comments_section.dart';
 import '../widgets/incident_timeline.dart';
 import '../widgets/incident_header.dart';
@@ -500,7 +502,7 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
               Expanded(
                 child: AppButton(
                   label: 'Ver ruta',
-                  onPressed: () {},
+                  onPressed: _viewRoute,
                   icon: Icons.directions,
                 ),
               ),
@@ -584,30 +586,68 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
                 return _buildAddEvidenceCard().staggerChild(index, distance: 0.15);
               }
               final evidence = _evidences[index];
-              return Hero(
-                tag: 'evidence_${_incident!.id}_$index',
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(AppSpacing.borderRadiusLg),
-                  child: Container(
-                    width: 180,
-                    decoration: BoxDecoration(
-                      border: Border.all(color: AppColors.borderPrimary, width: 0.5),
+              final mediaUrl = _resolveMediaUrl(evidence.fileUrl);
+              final isVideo = inferEvidenceFileType(evidence.fileUrl) == 'VIDEO';
+              final heroTag = 'evidence_${_incident!.id}_$index';
+              return GestureDetector(
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => MediaViewerPage(
+                      url: mediaUrl,
+                      isVideo: isVideo,
+                      heroTag: heroTag,
                     ),
-                    child: CachedNetworkImage(
-                      imageUrl: _resolveMediaUrl(evidence.fileUrl),
-                      fit: BoxFit.cover,
-                      placeholder: (context, url) => Container(
-                        color: AppColors.surfaceSecondary,
-                        child: Center(
-                          child: AppLoadingIndicator(color: AppColors.primaryBlue),
-                        ),
+                  ),
+                ),
+                child: Hero(
+                  tag: heroTag,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(AppSpacing.borderRadiusLg),
+                    child: Container(
+                      width: 180,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: AppColors.borderPrimary, width: 0.5),
                       ),
-                      errorWidget: (context, url, error) => Container(
-                        color: AppColors.surfaceSecondary,
-                        child: Center(
-                          child: Icon(Icons.broken_image_outlined, size: AppSpacing.iconXl, color: AppColors.textTertiary),
-                        ),
-                      ),
+                      child: isVideo
+                          ? Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                CachedNetworkImage(
+                                  imageUrl: cloudinaryVideoThumbnailUrl(mediaUrl) ?? mediaUrl,
+                                  fit: BoxFit.cover,
+                                  placeholder: (context, url) => Container(
+                                    color: AppColors.surfaceSecondary,
+                                    child: Center(
+                                      child: AppLoadingIndicator(color: AppColors.primaryBlue),
+                                    ),
+                                  ),
+                                  errorWidget: (context, url, error) => Container(
+                                    color: AppColors.surfaceSecondary,
+                                  ),
+                                ),
+                                Container(
+                                  color: Colors.black26,
+                                  alignment: Alignment.center,
+                                  child: const Icon(Icons.play_circle_fill, size: 40, color: Colors.white),
+                                ),
+                              ],
+                            )
+                          : CachedNetworkImage(
+                              imageUrl: mediaUrl,
+                              fit: BoxFit.cover,
+                              placeholder: (context, url) => Container(
+                                color: AppColors.surfaceSecondary,
+                                child: Center(
+                                  child: AppLoadingIndicator(color: AppColors.primaryBlue),
+                                ),
+                              ),
+                              errorWidget: (context, url, error) => Container(
+                                color: AppColors.surfaceSecondary,
+                                child: Center(
+                                  child: Icon(Icons.broken_image_outlined, size: AppSpacing.iconXl, color: AppColors.textTertiary),
+                                ),
+                              ),
+                            ),
                     ),
                   ),
                 ),
@@ -692,12 +732,11 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
   }
 
   void _viewRoute() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Abriendo navegación...'),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: AppColors.primaryBlue,
-      ),
+    if (_incident == null) return;
+    final lat = _incident!.location.latitude;
+    final lng = _incident!.location.longitude;
+    context.push(
+      '${AppRouter.map}?lat=$lat&lng=$lng&incidentId=${_incident!.id}',
     );
   }
 

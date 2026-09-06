@@ -79,22 +79,27 @@ const String _systemInstruction =
     'inmediato a la función submit_report con esos datos (no seguí pidiendo más detalles ni '
     'confirmaciones adicionales) y avisá a la persona que estás enviando el reporte.';
 
-/// Thin WebSocket client for Gemini's Live API (`BidiGenerateContent`).
-/// There is no official Dart SDK for this API, so the message shapes here
-/// are implemented directly from Google's public reference docs.
+/// Thin WebSocket client for Gemini's Live API. The real Gemini API key never
+/// leaves the backend: this connects with a short-lived ephemeral token
+/// (`access_token`) obtained from `/api/citizen/gemini/live-token`, using the
+/// constrained RPC Google requires for token-based connections
+/// (`BidiGenerateContentConstrained`, `v1alpha`) instead of the raw-key
+/// `BidiGenerateContent`/`v1beta` endpoint. There is no official Dart SDK for
+/// this API, so the message shapes here are implemented directly from
+/// Google's public reference docs.
 class GeminiLiveService {
-  final String apiKey;
+  final String ephemeralToken;
   WebSocketChannel? _channel;
   StreamSubscription? _channelSubscription;
   final StreamController<GeminiLiveEvent> _controller = StreamController<GeminiLiveEvent>.broadcast();
 
-  GeminiLiveService({required this.apiKey});
+  GeminiLiveService({required this.ephemeralToken});
 
   Stream<GeminiLiveEvent> get events => _controller.stream;
 
   Future<void> connect() async {
     final uri = Uri.parse(
-      'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=$apiKey',
+      'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained?access_token=$ephemeralToken',
     );
 
     try {

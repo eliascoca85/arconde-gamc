@@ -7,7 +7,6 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../../../app/routes/app_router.dart';
 import '../../../../app/theme/index.dart';
 import '../../../../core/animations/motion.dart';
-import '../../../../core/config/env.dart';
 import '../../../../core/network/gemini_live_service.dart';
 import '../../../../core/network/nominatim_service.dart';
 import '../../../../core/services/location_service.dart';
@@ -101,14 +100,6 @@ class _AiReportPageState extends State<AiReportPage> {
   }
 
   Future<void> _start() async {
-    if (!Env.hasGeminiApiKey) {
-      setState(() {
-        _state = _VoiceState.error;
-        _errorMessage = 'El reporte por voz todavía no está configurado en esta app.';
-      });
-      return;
-    }
-
     setState(() => _state = _VoiceState.requestingPermission);
     final micStatus = await Permission.microphone.request();
     if (!micStatus.isGranted) {
@@ -148,7 +139,20 @@ class _AiReportPageState extends State<AiReportPage> {
   }
 
   Future<void> _connectGemini() async {
-    final gemini = GeminiLiveService(apiKey: Env.geminiApiKey);
+    final String token;
+    try {
+      token = await _emergencyRepository.fetchGeminiLiveToken();
+    } catch (e) {
+      debugPrint('AiReportPage: fetchGeminiLiveToken failed: $e');
+      if (!mounted) return;
+      setState(() {
+        _state = _VoiceState.error;
+        _errorMessage = 'No se pudo iniciar el asistente de voz. Intenta nuevamente.';
+      });
+      return;
+    }
+
+    final gemini = GeminiLiveService(ephemeralToken: token);
     _gemini = gemini;
     _eventSubscription = gemini.events.listen(_onGeminiEvent);
     await gemini.connect();
@@ -296,7 +300,11 @@ class _AiReportPageState extends State<AiReportPage> {
       final localEvidence = _evidencePaths.where((path) => !path.startsWith('http'));
       for (final path in localEvidence) {
         try {
-          await _emergencyRepository.uploadEvidence(emergency.pkEmergency, File(path));
+          await _emergencyRepository.uploadEvidence(
+            emergency.pkEmergency,
+            File(path),
+            fileType: inferEvidenceFileType(path),
+          );
         } catch (_) {
           // Evidence upload failures shouldn't block the report confirmation.
         }
