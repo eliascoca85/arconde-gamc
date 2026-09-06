@@ -123,6 +123,7 @@ class _CreateReportPageState extends State<CreateReportPage> {
       );
 
       final localEvidence = _evidenceUrls.where((url) => !url.startsWith('http'));
+      var failedEvidenceCount = 0;
       for (final path in localEvidence) {
         try {
           await _emergencyRepository.uploadEvidence(
@@ -131,12 +132,25 @@ class _CreateReportPageState extends State<CreateReportPage> {
             fileType: inferEvidenceFileType(path),
           );
         } catch (_) {
-          // Evidence upload failures shouldn't block the report confirmation.
+          // Una evidencia fallida no debe bloquear la confirmación del
+          // reporte, pero sí debe avisarse (antes fallaba en silencio).
+          failedEvidenceCount++;
         }
       }
 
       if (!mounted) return;
       setState(() => _isSubmitting = false);
+      if (failedEvidenceCount > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              failedEvidenceCount == 1
+                  ? 'El reporte se envió, pero no se pudo adjuntar 1 evidencia.'
+                  : 'El reporte se envió, pero no se pudieron adjuntar $failedEvidenceCount evidencias.',
+            ),
+          ),
+        );
+      }
       showModalBottomSheet(
         context: context,
         isScrollControlled: true,

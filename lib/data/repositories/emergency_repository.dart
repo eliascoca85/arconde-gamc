@@ -184,18 +184,42 @@ class EmergencyRepository {
         .toList();
   }
 
+  /// Sube el archivo directamente a Cloudinary (con una firma de corta
+  /// duración emitida por el backend) y luego solo informa la URL resultante
+  /// al backend. Los videos superan fácilmente el límite de payload (~4.5 MB)
+  /// de las funciones serverless de Vercel; las imágenes comprimidas casi
+  /// nunca lo hacían, por eso solo los videos fallaban antes de este cambio.
   Future<EvidenceDto> uploadEvidence(
     int emergencyId,
     File file, {
     String fileType = 'IMAGE',
     String? description,
   }) async {
-    final formData = FormData.fromMap({
+    final signatureResponse = await _dio.post('/api/citizen/evidence/upload-signature');
+    final signature = signatureResponse.data as Map<String, dynamic>;
+    final resourceType = fileType == 'IMAGE' ? 'image' : 'video';
+
+    final uploadData = FormData.fromMap({
       'file': await MultipartFile.fromFile(file.path),
-      'fileType': fileType,
-      if (description != null) 'description': description,
+      'api_key': signature['apiKey'],
+      'timestamp': signature['timestamp'].toString(),
+      'signature': signature['signature'],
+      'folder': signature['folder'],
     });
-    final response = await _dio.post('/api/citizen/emergencies/$emergencyId/evidence', data: formData);
+    final cloudinaryResponse = await Dio().post<Map<String, dynamic>>(
+      'https://api.cloudinary.com/v1_1/${signature['cloudName']}/$resourceType/upload',
+      data: uploadData,
+    );
+    final fileUrl = cloudinaryResponse.data!['secure_url'] as String;
+
+    final response = await _dio.post(
+      '/api/citizen/emergencies/$emergencyId/evidence',
+      data: {
+        'fileType': fileType,
+        'fileUrl': fileUrl,
+        if (description != null) 'description': description,
+      },
+    );
     return EvidenceDto.fromJson(response.data as Map<String, dynamic>);
   }
 
