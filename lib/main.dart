@@ -7,6 +7,8 @@ import 'app/theme/app_spacing.dart';
 import 'app/theme/app_theme.dart';
 import 'core/extensions/widget_extensions.dart';
 import 'core/network/auth_service.dart';
+import 'core/services/permission_service.dart';
+import 'features/onboarding/presentation/pages/permissions_request_page.dart';
 import 'shared/widgets/basic_widgets.dart';
 
 void main() {
@@ -23,6 +25,13 @@ class ArconteApp extends StatefulWidget {
 
 class _ArconteAppState extends State<ArconteApp> {
   bool _skippedAuth = false;
+  // null mientras no se ha resuelto (o no corresponde resolver todavía) si
+  // hace falta mostrar el onboarding de permisos; una vez resuelto queda en
+  // true/false por el resto de la vida de la app. Se resuelve recién cuando
+  // el usuario ya inició sesión o saltó el login — nunca antes, para que el
+  // orden sea siempre: logo/login → permisos → app.
+  bool? _needsPermissionsOnboarding;
+  bool _permissionsCheckStarted = false;
 
   @override
   void initState() {
@@ -32,12 +41,18 @@ class _ArconteAppState extends State<ArconteApp> {
     // user on the login/skip screen instead of hanging on a loading state.
     AuthService.restoreSession().catchError((_) {});
     AuthService.loginRequests.addListener(_onLoginRequested);
+    AuthService.isLoggedIn.addListener(_onAuthChanged);
   }
 
   @override
   void dispose() {
     AuthService.loginRequests.removeListener(_onLoginRequested);
+    AuthService.isLoggedIn.removeListener(_onAuthChanged);
     super.dispose();
+  }
+
+  void _onAuthChanged() {
+    if (AuthService.isLoggedIn.value) _maybeCheckPermissionsOnboarding();
   }
 
   void _onLoginRequested() {
@@ -48,6 +63,23 @@ class _ArconteAppState extends State<ArconteApp> {
 
   void _onSkip() {
     setState(() => _skippedAuth = true);
+    _maybeCheckPermissionsOnboarding();
+  }
+
+  /// Se llama recién cuando el usuario ya inició sesión o saltó el login —
+  /// es decir, justo antes de que le tocaría ver la app por primera vez.
+  /// Idempotente: la consulta real a SharedPreferences solo se dispara una
+  /// vez por instancia de la app.
+  void _maybeCheckPermissionsOnboarding() {
+    if (_permissionsCheckStarted) return;
+    _permissionsCheckStarted = true;
+    PermissionService.hasCompletedInitialOnboarding().then((done) {
+      if (mounted) setState(() => _needsPermissionsOnboarding = !done);
+    });
+  }
+
+  void _onPermissionsOnboardingDone() {
+    setState(() => _needsPermissionsOnboarding = false);
   }
 
   @override
@@ -56,14 +88,27 @@ class _ArconteAppState extends State<ArconteApp> {
       valueListenable: AuthService.isLoggedIn,
       builder: (context, loggedIn, _) {
         final showApp = loggedIn || _skippedAuth;
-        return AnimatedSwitcher(
-          duration: const Duration(milliseconds: 400),
-          switchInCurve: Curves.easeOut,
-          switchOutCurve: Curves.easeIn,
-          child: showApp
-              ? const App(key: ValueKey('app'))
-              : _preRouterShell(_LoginScreen(key: const ValueKey('login'), onComplete: _onSkip)),
-        );
+
+        if (!showApp) {
+          return _preRouterShell(_LoginScreen(key: const ValueKey('login'), onComplete: _onSkip));
+        }
+
+        // showApp ya es true (login/skip recién resuelto): antes de mostrar
+        // la app se decide si falta el onboarding de permisos. Mientras esa
+        // consulta (casi instantánea) no resuelve, se muestra un placeholder
+        // con el mismo logo — nunca la app directamente.
+        if (_needsPermissionsOnboarding != false) {
+          return _preRouterShell(
+            _needsPermissionsOnboarding == true
+                ? PermissionsRequestPage(
+                    key: const ValueKey('permissions'),
+                    onDone: _onPermissionsOnboardingDone,
+                  )
+                : const _SplashScreen(key: ValueKey('post-login-splash')),
+          );
+        }
+
+        return const App(key: ValueKey('app'));
       },
     );
   }
@@ -74,6 +119,29 @@ class _ArconteAppState extends State<ArconteApp> {
       theme: AppTheme.lightTheme,
       themeMode: ThemeMode.light,
       home: child,
+    );
+  }
+}
+
+/// Placeholder mínimo mientras se resuelve (de forma casi instantánea) si
+/// corresponde mostrar el onboarding de permisos, justo después de iniciar
+/// sesión o saltar el login. Usa el mismo fondo/logo que la pantalla de
+/// login para que no se note un "salto" visual.
+class _SplashScreen extends StatelessWidget {
+  const _SplashScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.backgroundPrimary,
+      body: Center(
+        child: Image.asset(
+          'assets/icons/LOGO_GAMC.png',
+          width: 112,
+          height: 112,
+          fit: BoxFit.contain,
+        ),
+      ),
     );
   }
 }
@@ -100,6 +168,7 @@ class _LoginScreenState extends State<_LoginScreen> {
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   bool _isSubmitting = false;
+  bool _obscurePassword = true;
   String? _errorMessage;
 
   @override
@@ -431,9 +500,17 @@ class _LoginScreenState extends State<_LoginScreen> {
         AppInput(
           label: 'Contraseña',
           controller: _passwordController,
-          obscureText: true,
+          obscureText: _obscurePassword,
           prefixIcon: Icons.lock_outline,
           textInputAction: TextInputAction.done,
+          suffixIcon: IconButton(
+            icon: Icon(
+              _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+              size: AppSpacing.iconMd,
+              color: AppColors.textTertiary,
+            ),
+            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+          ),
         ),
       ],
     );

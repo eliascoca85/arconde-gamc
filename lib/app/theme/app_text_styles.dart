@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
 
 class AppTextStyles {
-  static TextStyle get displayLarge => GoogleFonts.libreBaskerville(
+  static TextStyle get displayLarge => const TextStyle(
+        fontFamily: 'LibreBaskerville',
         fontSize: 56,
         fontWeight: FontWeight.w700,
         letterSpacing: -0.25,
@@ -11,7 +11,8 @@ class AppTextStyles {
         color: AppColors.textPrimary,
       );
 
-  static TextStyle get displayMedium => GoogleFonts.libreBaskerville(
+  static TextStyle get displayMedium => const TextStyle(
+        fontFamily: 'LibreBaskerville',
         fontSize: 44,
         fontWeight: FontWeight.w700,
         letterSpacing: 0,
@@ -19,7 +20,8 @@ class AppTextStyles {
         color: AppColors.textPrimary,
       );
 
-  static TextStyle get displaySmall => GoogleFonts.libreBaskerville(
+  static TextStyle get displaySmall => const TextStyle(
+        fontFamily: 'LibreBaskerville',
         fontSize: 34,
         fontWeight: FontWeight.w700,
         letterSpacing: 0,
@@ -27,7 +29,8 @@ class AppTextStyles {
         color: AppColors.textPrimary,
       );
 
-  static TextStyle get headlineLarge => GoogleFonts.libreBaskerville(
+  static TextStyle get headlineLarge => const TextStyle(
+        fontFamily: 'LibreBaskerville',
         fontSize: 30,
         fontWeight: FontWeight.w700,
         letterSpacing: 0,
@@ -35,7 +38,8 @@ class AppTextStyles {
         color: AppColors.textPrimary,
       );
 
-  static TextStyle get headlineMedium => GoogleFonts.libreBaskerville(
+  static TextStyle get headlineMedium => const TextStyle(
+        fontFamily: 'LibreBaskerville',
         fontSize: 26,
         fontWeight: FontWeight.w700,
         letterSpacing: 0,
@@ -43,7 +47,8 @@ class AppTextStyles {
         color: AppColors.textPrimary,
       );
 
-  static TextStyle get headlineSmall => GoogleFonts.libreBaskerville(
+  static TextStyle get headlineSmall => const TextStyle(
+        fontFamily: 'LibreBaskerville',
         fontSize: 22,
         fontWeight: FontWeight.w700,
         letterSpacing: 0,
@@ -51,7 +56,8 @@ class AppTextStyles {
         color: AppColors.textPrimary,
       );
 
-  static TextStyle get titleLarge => GoogleFonts.libreBaskerville(
+  static TextStyle get titleLarge => const TextStyle(
+        fontFamily: 'LibreBaskerville',
         fontSize: 20,
         fontWeight: FontWeight.w400,
         letterSpacing: 0,
@@ -59,7 +65,8 @@ class AppTextStyles {
         color: AppColors.textPrimary,
       );
 
-  static TextStyle get titleMedium => GoogleFonts.lindenHill(
+  static TextStyle get titleMedium => const TextStyle(
+        fontFamily: 'LindenHill',
         fontSize: 16,
         fontWeight: FontWeight.w400,
         letterSpacing: 0.15,
@@ -67,7 +74,8 @@ class AppTextStyles {
         color: AppColors.textPrimary,
       );
 
-  static TextStyle get titleSmall => GoogleFonts.lindenHill(
+  static TextStyle get titleSmall => const TextStyle(
+        fontFamily: 'LindenHill',
         fontSize: 14,
         fontWeight: FontWeight.w400,
         letterSpacing: 0.1,
@@ -75,7 +83,8 @@ class AppTextStyles {
         color: AppColors.textPrimary,
       );
 
-  static TextStyle get labelLarge => GoogleFonts.lindenHill(
+  static TextStyle get labelLarge => const TextStyle(
+        fontFamily: 'LindenHill',
         fontSize: 15,
         fontWeight: FontWeight.w400,
         letterSpacing: 0.3,
@@ -83,7 +92,8 @@ class AppTextStyles {
         color: AppColors.textPrimary,
       );
 
-  static TextStyle get labelMedium => GoogleFonts.lindenHill(
+  static TextStyle get labelMedium => const TextStyle(
+        fontFamily: 'LindenHill',
         fontSize: 12,
         fontWeight: FontWeight.w400,
         letterSpacing: 0.5,
@@ -91,7 +101,8 @@ class AppTextStyles {
         color: AppColors.textPrimary,
       );
 
-  static TextStyle get labelSmall => GoogleFonts.lindenHill(
+  static TextStyle get labelSmall => const TextStyle(
+        fontFamily: 'LindenHill',
         fontSize: 11,
         fontWeight: FontWeight.w400,
         letterSpacing: 0.5,
@@ -99,7 +110,8 @@ class AppTextStyles {
         color: AppColors.textPrimary,
       );
 
-  static TextStyle get bodyLarge => GoogleFonts.ovo(
+  static TextStyle get bodyLarge => const TextStyle(
+        fontFamily: 'Ovo',
         fontSize: 16,
         fontWeight: FontWeight.w400,
         letterSpacing: 0.15,
@@ -107,7 +119,8 @@ class AppTextStyles {
         color: AppColors.textPrimary,
       );
 
-  static TextStyle get bodyMedium => GoogleFonts.ovo(
+  static TextStyle get bodyMedium => const TextStyle(
+        fontFamily: 'Ovo',
         fontSize: 14,
         fontWeight: FontWeight.w400,
         letterSpacing: 0.2,
@@ -115,7 +128,8 @@ class AppTextStyles {
         color: AppColors.textPrimary,
       );
 
-  static TextStyle get bodySmall => GoogleFonts.ovo(
+  static TextStyle get bodySmall => const TextStyle(
+        fontFamily: 'Ovo',
         fontSize: 12,
         fontWeight: FontWeight.w400,
         letterSpacing: 0.3,

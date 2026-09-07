@@ -10,6 +10,11 @@ import '../../../features/reports/presentation/pages/ai_report_page.dart';
 import '../../../features/reports/presentation/pages/my_reports_page.dart';
 import '../../../features/notifications/presentation/pages/notifications_page.dart';
 import '../../../features/profile/presentation/pages/profile_page.dart';
+import '../../../features/profile/presentation/pages/favorite_zones_page.dart';
+import '../../../features/profile/presentation/pages/settings_page.dart';
+import '../../../features/profile/presentation/pages/privacy_page.dart';
+import '../../../features/profile/presentation/pages/help_support_page.dart';
+import '../../../features/profile/presentation/pages/about_page.dart';
 
 class AppRouter {
   static const String home = '/';
@@ -20,6 +25,11 @@ class AppRouter {
   static const String myReports = '/reports/my';
   static const String notifications = '/notifications';
   static const String profile = '/profile';
+  static const String favoriteZones = '/profile/favorite-zones';
+  static const String settings = '/profile/settings';
+  static const String privacy = '/profile/privacy';
+  static const String helpSupport = '/profile/help';
+  static const String about = '/profile/about';
   static const String search = '/search';
 
   static final GoRouter router = GoRouter(
@@ -76,6 +86,31 @@ class AppRouter {
         path: profile,
         name: 'profile',
         builder: (context, state) => const ProfilePage(),
+      ),
+      GoRoute(
+        path: favoriteZones,
+        name: 'favorite-zones',
+        builder: (context, state) => const FavoriteZonesPage(),
+      ),
+      GoRoute(
+        path: settings,
+        name: 'settings',
+        builder: (context, state) => const SettingsPage(),
+      ),
+      GoRoute(
+        path: privacy,
+        name: 'privacy',
+        builder: (context, state) => const PrivacyPage(),
+      ),
+      GoRoute(
+        path: helpSupport,
+        name: 'help-support',
+        builder: (context, state) => const HelpSupportPage(),
+      ),
+      GoRoute(
+        path: about,
+        name: 'about',
+        builder: (context, state) => const AboutPage(),
       ),
       GoRoute(
         path: search,

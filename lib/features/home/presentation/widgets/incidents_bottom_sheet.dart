@@ -74,26 +74,23 @@ Widget _buildIncidentsEmptyState(String message) {
 /// draggable sheet. Collapsed by default to just its icon; tapping the icon
 /// expands it to reveal the title and the horizontal carousel, and tapping
 /// the icon again collapses it back down.
-class NearbyIncidentsCard extends StatefulWidget {
+class NearbyIncidentsCard extends StatelessWidget {
   final List<Incident> incidents;
   final Function(Incident) onIncidentTap;
+  final bool expanded;
+  final VoidCallback onToggleExpanded;
 
   const NearbyIncidentsCard({
     super.key,
     required this.incidents,
     required this.onIncidentTap,
+    required this.expanded,
+    required this.onToggleExpanded,
   });
 
   @override
-  State<NearbyIncidentsCard> createState() => _NearbyIncidentsCardState();
-}
-
-class _NearbyIncidentsCardState extends State<NearbyIncidentsCard> {
-  bool _expanded = false;
-
-  @override
   Widget build(BuildContext context) {
-    final nearbyIncidents = widget.incidents.where((i) => i.isNearby).toList();
+    final nearbyIncidents = incidents.where((i) => i.isNearby).toList();
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
@@ -106,8 +103,8 @@ class _NearbyIncidentsCardState extends State<NearbyIncidentsCard> {
         mainAxisSize: MainAxisSize.min,
         children: [
           _buildCollapsibleHeader(
-            expanded: _expanded,
-            onToggle: () => setState(() => _expanded = !_expanded),
+            expanded: expanded,
+            onToggle: onToggleExpanded,
             icon: Icons.warning_amber_outlined,
             gradient: AppColors.primaryGradient,
             title: 'Incidentes cerca de ti',
@@ -117,7 +114,7 @@ class _NearbyIncidentsCardState extends State<NearbyIncidentsCard> {
             duration: const Duration(milliseconds: 280),
             curve: Curves.easeOutCubic,
             alignment: Alignment.topCenter,
-            child: _expanded
+            child: expanded
                 ? Padding(
                     padding: const EdgeInsets.only(bottom: AppSpacing.md),
                     child: nearbyIncidents.isEmpty
@@ -144,7 +141,7 @@ class _NearbyIncidentsCardState extends State<NearbyIncidentsCard> {
 
           return IncidentCard(
             incident: incident,
-            onTap: () => widget.onIncidentTap(incident),
+            onTap: () => onIncidentTap(incident),
             isHorizontal: true,
             showReporter: false,
             index: index,
@@ -160,22 +157,19 @@ class _NearbyIncidentsCardState extends State<NearbyIncidentsCard> {
 /// by default to just its icon; tapping the icon expands it to reveal the
 /// full incident list (vertical, scrollable), and tapping it again collapses
 /// it back down.
-class AllIncidentsCard extends StatefulWidget {
+class AllIncidentsCard extends StatelessWidget {
   final List<Incident> incidents;
   final Function(Incident) onIncidentTap;
+  final bool expanded;
+  final VoidCallback onToggleExpanded;
 
   const AllIncidentsCard({
     super.key,
     required this.incidents,
     required this.onIncidentTap,
+    required this.expanded,
+    required this.onToggleExpanded,
   });
-
-  @override
-  State<AllIncidentsCard> createState() => _AllIncidentsCardState();
-}
-
-class _AllIncidentsCardState extends State<AllIncidentsCard> {
-  bool _expanded = false;
 
   @override
   Widget build(BuildContext context) {
@@ -190,23 +184,23 @@ class _AllIncidentsCardState extends State<AllIncidentsCard> {
         mainAxisSize: MainAxisSize.min,
         children: [
           _buildCollapsibleHeader(
-            expanded: _expanded,
-            onToggle: () => setState(() => _expanded = !_expanded),
+            expanded: expanded,
+            onToggle: onToggleExpanded,
             icon: Icons.list_alt,
             gradient: AppColors.secondaryGradient,
             title: 'Todos los incidentes',
-            subtitle: '${widget.incidents.length} incidentes en total',
+            subtitle: '${incidents.length} incidentes en total',
           ),
           AnimatedSize(
             duration: const Duration(milliseconds: 280),
             curve: Curves.easeOutCubic,
             alignment: Alignment.topCenter,
-            child: _expanded
+            child: expanded
                 ? Padding(
                     padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                    child: widget.incidents.isEmpty
+                    child: incidents.isEmpty
                         ? _buildIncidentsEmptyState('No hay incidentes registrados')
-                        : _buildIncidentsList(widget.incidents),
+                        : _buildIncidentsList(incidents),
                   )
                 : const SizedBox.shrink(),
           ),
@@ -227,7 +221,7 @@ class _AllIncidentsCardState extends State<AllIncidentsCard> {
 
           return IncidentCard(
             incident: incident,
-            onTap: () => widget.onIncidentTap(incident),
+            onTap: () => onIncidentTap(incident),
             isHorizontal: false,
             index: index,
           );

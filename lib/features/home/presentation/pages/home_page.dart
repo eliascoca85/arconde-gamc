@@ -9,6 +9,8 @@ import '../../../../../core/constants/app_constants.dart';
 import '../../../../../core/network/nominatim_service.dart';
 import '../../../../../core/services/location_service.dart';
 import '../../../../../core/services/report_events.dart';
+import '../../../../../core/services/settings_events.dart';
+import '../../../../../core/services/settings_store.dart';
 import '../../../../../core/utils/geojson_parser.dart';
 import '../../../../../data/repositories/emergency_repository.dart';
 import '../../../../../mock/models.dart';
@@ -45,20 +47,69 @@ class _HomePageState extends State<HomePage> {
 
   List<Incident>? _visibleIncidentsSource;
   GeoSearchResult? _visibleIncidentsZone;
+  int _visibleIncidentsFilterVersion = -1;
   List<Incident> _visibleIncidentsCache = const [];
   final MapController _mapController = MapController();
+
+  static const Map<String, bool> _defaultIncidentFilters = {
+    'urgente': true,
+    'moderado': true,
+    'resuelto': true,
+    'robo': true,
+    'accidente': true,
+    'persona_sospechosa': true,
+    'violencia': true,
+    'incendio': true,
+    'emergencia_medica': true,
+    'vandalismo': true,
+    'otro': true,
+  };
+  Map<String, bool> _incidentFilters = Map.of(_defaultIncidentFilters);
+  int _filterVersion = 0;
+
+  List<FavoriteZone> _favoriteZones = const [];
+  String? _applyingFavoriteKey;
+
+  bool _nearbyIncidentsExpanded = false;
+  bool _allIncidentsExpanded = false;
+  bool get _anyIncidentsCardExpanded => _nearbyIncidentsExpanded || _allIncidentsExpanded;
+
+  void _toggleNearbyIncidents() {
+    setState(() {
+      _nearbyIncidentsExpanded = !_nearbyIncidentsExpanded;
+      if (_nearbyIncidentsExpanded) _allIncidentsExpanded = false;
+    });
+  }
+
+  void _toggleAllIncidents() {
+    setState(() {
+      _allIncidentsExpanded = !_allIncidentsExpanded;
+      if (_allIncidentsExpanded) _nearbyIncidentsExpanded = false;
+    });
+  }
+
+  void _collapseIncidentCards() {
+    if (!_anyIncidentsCardExpanded) return;
+    setState(() {
+      _nearbyIncidentsExpanded = false;
+      _allIncidentsExpanded = false;
+    });
+  }
 
   @override
   void initState() {
     super.initState();
     _incidentsFuture = _emergencyRepository.listPublicIncidents();
     _loadUserLocation();
+    _loadFavoriteZones();
     ReportEvents.submitted.addListener(_onReportSubmitted);
+    SettingsEvents.favoriteZonesChanged.addListener(_loadFavoriteZones);
   }
 
   @override
   void dispose() {
     ReportEvents.submitted.removeListener(_onReportSubmitted);
+    SettingsEvents.favoriteZonesChanged.removeListener(_loadFavoriteZones);
     _mapController.dispose();
     super.dispose();
   }
@@ -68,6 +119,30 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       _incidentsFuture = _emergencyRepository.listPublicIncidents();
     });
+  }
+
+  Future<void> _loadFavoriteZones() async {
+    final zones = await SettingsStore.loadFavoriteZones();
+    if (!mounted) return;
+    setState(() => _favoriteZones = zones);
+  }
+
+  /// Applies a saved favorite as the active search zone — re-resolving it
+  /// by its stable OSM id to get fresh, full geometry (see
+  /// [NominatimService.lookup]) rather than trusting cached coordinates,
+  /// so it filters incidents exactly like picking it from the search bar.
+  Future<void> _applyFavoriteZone(FavoriteZone zone) async {
+    setState(() => _applyingFavoriteKey = zone.key);
+    final result = await NominatimService.lookup(zone.osmType, zone.osmId);
+    if (!mounted) return;
+    setState(() => _applyingFavoriteKey = null);
+    if (result == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo aplicar esa zona. Intenta nuevamente.')),
+      );
+      return;
+    }
+    _onZoneSelected(result);
   }
 
   Future<void> _loadUserLocation() async {
@@ -121,27 +196,36 @@ class _HomePageState extends State<HomePage> {
   /// Cached by (source list, zone) so it isn't recomputed on every rebuild.
   List<Incident> _visibleIncidents(List<Incident> incidents) {
     if (identical(incidents, _visibleIncidentsSource) &&
-        _visibleIncidentsZone?.key == _selectedZone?.key) {
+        _visibleIncidentsZone?.key == _selectedZone?.key &&
+        _visibleIncidentsFilterVersion == _filterVersion) {
       return _visibleIncidentsCache;
     }
 
     final geometry = _selectedZone?.geometry;
-    final filtered = (geometry == null || !geometry.isArea)
+    Iterable<Incident> filtered = (geometry == null || !geometry.isArea)
         ? incidents
         : incidents.where((incident) {
             final point = LatLng(incident.location.latitude, incident.location.longitude);
             return isPointInZone(point, geometry);
-          }).toList();
+          });
+
+    filtered = filtered.where((incident) =>
+        (_incidentFilters[incident.status.value] ?? true) &&
+        (_incidentFilters[incident.type.value] ?? true));
+
+    final result = filtered.toList();
 
     _visibleIncidentsSource = incidents;
     _visibleIncidentsZone = _selectedZone;
-    _visibleIncidentsCache = filtered;
-    return filtered;
+    _visibleIncidentsFilterVersion = _filterVersion;
+    _visibleIncidentsCache = result;
+    return result;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBody: true,
       body: Stack(
         children: [
           IndexedStack(
@@ -179,6 +263,7 @@ class _HomePageState extends State<HomePage> {
               onToggleExpand: _onToggleMapExpanded,
               zone: _selectedZone,
               mapController: _mapController,
+              onMapTap: _collapseIncidentCards,
             ),
             SafeArea(
               bottom: false,
@@ -206,7 +291,6 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
                   ),
-                  _buildBottomActionBar(),
                 ],
               ),
             ),
@@ -219,9 +303,19 @@ class _HomePageState extends State<HomePage> {
               top: 0,
               right: 0,
               child: SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: _topZoomControlsOffset, right: AppSpacing.md),
-                  child: MapZoomControls(onZoomIn: _onZoomIn, onZoomOut: _onZoomOut),
+                child: IgnorePointer(
+                  ignoring: _anyIncidentsCardExpanded,
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeInOut,
+                    opacity: _anyIncidentsCardExpanded ? 0 : 1,
+                    child: AnimatedPadding(
+                      duration: const Duration(milliseconds: 250),
+                      curve: Curves.easeInOut,
+                      padding: EdgeInsets.only(top: _topZoomControlsOffset, right: AppSpacing.md),
+                      child: MapZoomControls(onZoomIn: _onZoomIn, onZoomOut: _onZoomOut),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -231,7 +325,17 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  static const double _topZoomControlsOffset = 96;
+  static const double _baseZoomControlsOffset = 96;
+  // Height of the favorite-zone chips row plus the gap below it (see
+  // _buildFavoriteZoneChips/_buildTopBar) — added on top of the base offset
+  // so the zoom buttons drop down and clear the chips instead of covering
+  // them, the same way the rest of the top bar accommodates that row.
+  static const double _favoriteZoneChipsExtraOffset = 44;
+
+  double get _topZoomControlsOffset {
+    final showsFavoriteChips = _selectedZone == null && _favoriteZones.isNotEmpty;
+    return _baseZoomControlsOffset + (showsFavoriteChips ? _favoriteZoneChipsExtraOffset : 0);
+  }
 
   Widget _buildTopBar(AsyncSnapshot<List<Incident>> snapshot, List<Incident> incidents) {
     return Padding(
@@ -249,6 +353,10 @@ class _HomePageState extends State<HomePage> {
             onZoneCleared: _onZoneCleared,
             onFilterPressed: _showFilterSheet,
           ),
+          if (_selectedZone == null && _favoriteZones.isNotEmpty) ...[
+            _buildFavoriteZoneChips(),
+            const SizedBox(height: AppSpacing.sm),
+          ],
           const SizedBox(height: AppSpacing.sm),
           if (snapshot.connectionState != ConnectionState.done)
             const Padding(
@@ -272,11 +380,15 @@ class _HomePageState extends State<HomePage> {
             NearbyIncidentsCard(
               incidents: incidents,
               onIncidentTap: _onIncidentTap,
+              expanded: _nearbyIncidentsExpanded,
+              onToggleExpanded: _toggleNearbyIncidents,
             ),
             const SizedBox(height: AppSpacing.sm),
             AllIncidentsCard(
               incidents: incidents,
               onIncidentTap: _onIncidentTap,
+              expanded: _allIncidentsExpanded,
+              onToggleExpanded: _toggleAllIncidents,
             ),
           ],
         ],
@@ -284,28 +396,27 @@ class _HomePageState extends State<HomePage> {
     ).immersiveEntrance(distance: -0.08);
   }
 
-  Widget _buildBottomActionBar() {
+  Widget _buildFavoriteZoneChips() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.md, 0, AppSpacing.md, AppSpacing.lg),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          AppFAB(
-            onPressed: _onReportPressed,
-            isExtended: true,
-            label: 'Reportar',
-            icon: Icons.emergency_outlined,
-            backgroundColor: AppColors.urgentRed,
-          ).pulseGlow(
-            minScale: 1.0,
-            maxScale: 1.04,
-            minOpacity: 1.0,
-            maxOpacity: 1.0,
-            duration: const Duration(milliseconds: 2200),
-          ),
-        ],
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      child: SizedBox(
+        height: 36,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: _favoriteZones.length,
+          separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.sm),
+          itemBuilder: (context, index) {
+            final zone = _favoriteZones[index];
+            final isLoading = _applyingFavoriteKey == zone.key;
+            return AppChip(
+              label: zone.primaryLabel,
+              icon: Icons.star,
+              onTap: isLoading ? null : () => _applyFavoriteZone(zone),
+            );
+          },
+        ),
       ),
-    ).immersiveEntrance(delay: const Duration(milliseconds: 500));
+    );
   }
 
   void _showFilterSheet() {
@@ -314,67 +425,137 @@ class _HomePageState extends State<HomePage> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => _FilterBottomSheet(
-        onFilterChanged: (filters) {},
+        initialFilters: _incidentFilters,
+        onFilterChanged: (filters) {
+          setState(() {
+            _incidentFilters = filters;
+            _filterVersion++;
+          });
+        },
       ),
     );
   }
 
+  static const double _centerButtonSize = 64;
+  static const double _centerButtonRaise = 24;
+
   Widget _buildBottomNavBar() {
-    return NavigationBar(
-      selectedIndex: _currentIndex,
-      onDestinationSelected: (index) => setState(() => _currentIndex = index),
-      height: 72,
-      indicatorColor: AppColors.primaryBlue.withValues(alpha: 0.2),
-      labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-      destinations: const [
-        NavigationDestination(
-          icon: Icon(Icons.map_outlined),
-          selectedIcon: Icon(Icons.map),
-          label: 'Mapa',
+    return SizedBox(
+      height: AppSpacing.bottomNavHeight + _centerButtonRaise,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Container(
+              height: AppSpacing.bottomNavHeight,
+              decoration: BoxDecoration(
+                color: AppColors.surfacePrimary,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.shadowColor,
+                    blurRadius: AppSpacing.elevationMd,
+                    offset: const Offset(0, -1),
+                  ),
+                ],
+              ),
+              child: SafeArea(
+                top: false,
+                child: Row(
+                  children: [
+                    Expanded(child: _buildNavItem(0, Icons.map_outlined, Icons.map, 'Mapa')),
+                    Expanded(child: _buildNavItem(1, Icons.assignment_outlined, Icons.assignment, 'Mis Reportes')),
+                    SizedBox(width: _centerButtonSize + AppSpacing.sm),
+                    Expanded(child: _buildNavItem(2, Icons.notifications_outlined, Icons.notifications, 'Notificaciones')),
+                    Expanded(child: _buildNavItem(3, Icons.person_outline, Icons.person, 'Perfil')),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: Center(child: _buildReportNavButton()),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNavItem(int index, IconData icon, IconData selectedIcon, String label) {
+    final isSelected = _currentIndex == index;
+    final color = isSelected ? AppColors.primaryDark : AppColors.textTertiary;
+    return Pressable(
+      onTap: () => setState(() {
+        _currentIndex = index;
+        _nearbyIncidentsExpanded = false;
+        _allIncidentsExpanded = false;
+      }),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(isSelected ? selectedIcon : icon, color: color, size: AppSpacing.iconMd),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: AppTextStyles.labelSmall.copyWith(
+              color: color,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReportNavButton() {
+    return Pressable(
+      onTap: _onReportPressed,
+      child: Container(
+        width: _centerButtonSize,
+        height: _centerButtonSize,
+        decoration: BoxDecoration(
+          gradient: AppColors.urgentGradient,
+          shape: BoxShape.circle,
+          border: Border.all(color: AppColors.surfacePrimary, width: 4),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.urgentRed.withValues(alpha: 0.45),
+              blurRadius: 20,
+              spreadRadius: 1,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
-        NavigationDestination(
-          icon: Icon(Icons.assignment_outlined),
-          selectedIcon: Icon(Icons.assignment),
-          label: 'Mis Reportes',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.notifications_outlined),
-          selectedIcon: Icon(Icons.notifications),
-          label: 'Notificaciones',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.person_outline),
-          selectedIcon: Icon(Icons.person),
-          label: 'Perfil',
-        ),
-      ],
+        child: Icon(Icons.emergency_outlined, color: AppColors.textOnPrimary, size: AppSpacing.iconLg),
+      ),
+    ).pulseGlow(
+      minScale: 1.0,
+      maxScale: 1.04,
+      minOpacity: 1.0,
+      maxOpacity: 1.0,
+      duration: const Duration(milliseconds: 2200),
     );
   }
 }
 
 class _FilterBottomSheet extends StatefulWidget {
+  final Map<String, bool> initialFilters;
   final Function(Map<String, bool>) onFilterChanged;
 
-  const _FilterBottomSheet({required this.onFilterChanged});
+  const _FilterBottomSheet({required this.initialFilters, required this.onFilterChanged});
 
   @override
   State<_FilterBottomSheet> createState() => _FilterBottomSheetState();
 }
 
 class _FilterBottomSheetState extends State<_FilterBottomSheet> {
-  final Map<String, bool> _filters = {
-    'urgente': true,
-    'moderado': true,
-    'resuelto': true,
-    'robo': true,
-    'accidente': true,
-    'persona_sospechosa': true,
-    'violencia': true,
-    'incendio': true,
-    'emergencia_medica': true,
-    'vandalismo': true,
-    'otro': true,
-  };
+  late final Map<String, bool> _filters = Map.of(widget.initialFilters);
 
   @override
   Widget build(BuildContext context) {

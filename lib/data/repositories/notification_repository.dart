@@ -18,17 +18,14 @@ class NotificationRepository {
   Future<void> markRead(int notificationId) async {
     await _dio.put(
       '/api/citizen/notifications',
-      data: {
-        'notificationId': notificationId,
-        'isRead': true,
-      },
+      data: {'PK_notification': notificationId},
     );
   }
 
   Future<void> markAllRead() async {
     await _dio.put(
       '/api/citizen/notifications',
-      data: {'markAllRead': true},
+      data: {'markAllAsRead': true},
     );
   }
 }

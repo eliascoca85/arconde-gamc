@@ -108,6 +108,36 @@ class NominatimService {
     }
   }
 
+  /// Re-resolves a previously seen result by its stable OSM id, including
+  /// its full geometry — used to reapply a saved favorite zone without
+  /// re-running a text search against a name that may since have drifted.
+  static Future<GeoSearchResult?> lookup(String osmType, int osmId) async {
+    final prefix = switch (osmType) {
+      'node' => 'N',
+      'way' => 'W',
+      'relation' => 'R',
+      _ => null,
+    };
+    if (prefix == null) return null;
+
+    try {
+      final response = await _dio.get<List<dynamic>>(
+        '/lookup',
+        queryParameters: {
+          'osm_ids': '$prefix$osmId',
+          'format': 'jsonv2',
+          'polygon_geojson': 1,
+          'addressdetails': 1,
+        },
+      );
+      final data = response.data ?? const [];
+      if (data.isEmpty || data.first is! Map<String, dynamic>) return null;
+      return _parseResult(data.first as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Reverse geocodes coordinates into a human-readable address. Returns
   /// `null` on any failure instead of throwing — callers treat this as a
   /// best-effort enrichment (falling back to raw coordinates), never as a

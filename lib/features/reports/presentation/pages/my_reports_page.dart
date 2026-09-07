@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../app/theme/index.dart';
+import '../../../../../core/network/auth_service.dart';
+import '../../../../../core/network/load_error.dart';
 import '../../../../../data/repositories/emergency_repository.dart';
 import '../../../../../mock/models.dart';
 import '../../../../../shared/components/report_card.dart';
@@ -28,7 +30,14 @@ class _MyReportsPageState extends State<MyReportsPage> with SingleTickerProvider
     _tabController.addListener(() {
       setState(() => _selectedTab = _tabController.index);
     });
-    _reportsFuture = _emergencyRepository.listMineReports();
+    _reportsFuture = _loadReports();
+  }
+
+  Future<List<Report>> _loadReports() {
+    if (!AuthService.isLoggedIn.value) {
+      return Future.error(const NeedsLoginException());
+    }
+    return _emergencyRepository.listMineReports();
   }
 
   @override
@@ -74,6 +83,20 @@ class _MyReportsPageState extends State<MyReportsPage> with SingleTickerProvider
             return const Center(child: AppLoadingIndicator());
           }
           if (snapshot.hasError) {
+            if (classifyLoadError(snapshot.error!) == LoadErrorKind.needsLogin) {
+              return Center(
+                child: AppEmptyState(
+                  icon: Icons.lock_outline,
+                  title: 'Inicia sesión para ver tus reportes',
+                  subtitle: 'Necesitas una cuenta para ver los reportes que creaste.',
+                  action: AppButton(
+                    label: 'Iniciar sesión',
+                    isExpanded: false,
+                    onPressed: AuthService.requestLogin,
+                  ),
+                ),
+              );
+            }
             return Center(
               child: AppEmptyState(
                 icon: Icons.error_outline,
@@ -83,7 +106,7 @@ class _MyReportsPageState extends State<MyReportsPage> with SingleTickerProvider
                   label: 'Reintentar',
                   isExpanded: false,
                   onPressed: () => setState(() {
-                    _reportsFuture = _emergencyRepository.listMineReports();
+                    _reportsFuture = _loadReports();
                   }),
                 ),
               ),

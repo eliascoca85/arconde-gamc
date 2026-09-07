@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../../../../app/routes/app_router.dart';
 import '../../../../../app/theme/index.dart';
 import '../../../../../core/animations/motion.dart';
@@ -357,7 +358,7 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
           ),
           child: IconButton(
             icon: const Icon(Icons.share_outlined, color: AppColors.textPrimary),
-            onPressed: () {},
+            onPressed: _shareIncident,
           ),
         ),
         Container(
@@ -747,6 +748,17 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
       builder: (context) => _MoreOptionsSheet(incident: _incident!),
     );
   }
+
+  void _shareIncident() {
+    final incident = _incident!;
+    final address = incident.location.address;
+    final mapsUrl =
+        'https://maps.google.com/?q=${incident.location.latitude},${incident.location.longitude}';
+    final text = StringBuffer('${incident.title}\n\n${incident.description}');
+    if (address.isNotEmpty) text.write('\n\nUbicación: $address');
+    text.write('\n$mapsUrl');
+    Share.share(text.toString());
+  }
 }
 
 class _MoreOptionsSheet extends StatelessWidget {
@@ -791,32 +803,6 @@ class _MoreOptionsSheet extends StatelessWidget {
                 SnackBar(content: Text('Reporte enviado'), behavior: SnackBarBehavior.floating),
               );
             },
-          ),
-          ListTile(
-            leading: Container(
-              padding: const EdgeInsets.all(AppSpacing.sm),
-              decoration: BoxDecoration(
-                color: AppColors.primaryBlue.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(AppSpacing.borderRadiusMd),
-              ),
-              child: Icon(Icons.share_outlined, color: AppColors.primaryBlue, size: AppSpacing.iconMd),
-            ),
-            title: Text('Compartir', style: AppTextStyles.bodyLarge),
-            subtitle: Text('Enviar a contactos o redes sociales', style: AppTextStyles.bodySmallSecondary),
-            onTap: () => Navigator.pop(context),
-          ),
-          ListTile(
-            leading: Container(
-              padding: const EdgeInsets.all(AppSpacing.sm),
-              decoration: BoxDecoration(
-                color: AppColors.textTertiary.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(AppSpacing.borderRadiusMd),
-              ),
-              child: Icon(Icons.bookmark_outline, color: AppColors.textTertiary, size: AppSpacing.iconMd),
-            ),
-            title: Text('Guardar', style: AppTextStyles.bodyLarge),
-            subtitle: Text('Agregar a tus incidentes guardados', style: AppTextStyles.bodySmallSecondary),
-            onTap: () => Navigator.pop(context),
           ),
           SizedBox(height: MediaQuery.of(context).padding.bottom),
         ],

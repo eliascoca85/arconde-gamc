@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../../app/theme/index.dart';
 import '../../../../../core/animations/motion.dart';
 import '../../../../../core/network/auth_service.dart';
+import '../../../../../core/network/load_error.dart';
 import '../../../../../data/mappers.dart';
 import '../../../../../data/repositories/citizen_repository.dart';
 import '../../../../../data/repositories/emergency_repository.dart';
@@ -36,6 +37,9 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<User> _loadUser() async {
+    if (!AuthService.isLoggedIn.value) {
+      throw const NeedsLoginException();
+    }
     final citizen = await _citizenRepository.getProfile();
     final reports = await _emergencyRepository.listMineReports();
     final resolvedReports = reports.where((r) => r.status == ReportStatus.attended).length;
@@ -59,6 +63,23 @@ class _ProfilePageState extends State<ProfilePage> {
           );
         }
         if (snapshot.hasError) {
+          if (classifyLoadError(snapshot.error!) == LoadErrorKind.needsLogin) {
+            return Scaffold(
+              backgroundColor: AppColors.backgroundPrimary,
+              body: Center(
+                child: AppEmptyState(
+                  icon: Icons.lock_outline,
+                  title: 'Inicia sesión para ver tu perfil',
+                  subtitle: 'Necesitas una cuenta para ver y gestionar tu perfil.',
+                  action: AppButton(
+                    label: 'Iniciar sesión',
+                    isExpanded: false,
+                    onPressed: AuthService.requestLogin,
+                  ),
+                ),
+              ),
+            );
+          }
           return Scaffold(
             backgroundColor: AppColors.backgroundPrimary,
             body: Center(
@@ -195,7 +216,7 @@ class _ProfileContent extends StatelessWidget {
                       icon: Icons.map_outlined,
                       title: 'Zonas favoritas',
                       subtitle: 'Gestionar áreas de interés',
-                      onTap: () {},
+                      onTap: () => context.push('/profile/favorite-zones'),
                     ),
                   ]),
                   const SizedBox(height: AppSpacing.lg),
@@ -204,25 +225,25 @@ class _ProfileContent extends StatelessWidget {
                       icon: Icons.tune_outlined,
                       title: 'Configuración',
                       subtitle: 'Personaliza la app',
-                      onTap: () {},
+                      onTap: () => context.push('/profile/settings'),
                     ),
                     _MenuItem(
                       icon: Icons.lock_outline,
                       title: 'Privacidad',
                       subtitle: 'Gestiona tus datos',
-                      onTap: () {},
+                      onTap: () => context.push('/profile/privacy'),
                     ),
                     _MenuItem(
                       icon: Icons.help_outline,
                       title: 'Ayuda y soporte',
                       subtitle: 'Preguntas frecuentes',
-                      onTap: () {},
+                      onTap: () => context.push('/profile/help'),
                     ),
                     _MenuItem(
                       icon: Icons.info_outline,
                       title: 'Acerca de',
                       subtitle: 'Versión 1.0.0',
-                      onTap: () {},
+                      onTap: () => context.push('/profile/about'),
                     ),
                   ]),
                   const SizedBox(height: AppSpacing.lg),

@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../../app/theme/index.dart';
+import '../../../../../core/network/auth_service.dart';
+import '../../../../../core/network/load_error.dart';
+import '../../../../../core/services/settings_store.dart';
 import '../../../../../data/repositories/notification_repository.dart';
 import '../../../../../mock/models.dart';
 import '../../../../../shared/components/notification_card.dart';
@@ -17,6 +21,8 @@ class _NotificationsPageState extends State<NotificationsPage> {
   List<NotificationItem> _notifications = [];
   bool _isLoading = true;
   bool _hasError = false;
+  bool _needsLogin = false;
+  bool _notificationsDisabled = false;
 
   @override
   void initState() {
@@ -25,9 +31,31 @@ class _NotificationsPageState extends State<NotificationsPage> {
   }
 
   Future<void> _loadNotifications() async {
+    if (!AuthService.isLoggedIn.value) {
+      setState(() {
+        _isLoading = false;
+        _hasError = false;
+        _needsLogin = true;
+        _notificationsDisabled = false;
+      });
+      return;
+    }
+    final notifyEnabled = await SettingsStore.loadNotifyReportUpdates();
+    if (!mounted) return;
+    if (!notifyEnabled) {
+      setState(() {
+        _isLoading = false;
+        _hasError = false;
+        _needsLogin = false;
+        _notificationsDisabled = true;
+      });
+      return;
+    }
     setState(() {
       _isLoading = true;
       _hasError = false;
+      _needsLogin = false;
+      _notificationsDisabled = false;
     });
     try {
       final notifications = await _notificationRepository.list();
@@ -36,11 +64,13 @@ class _NotificationsPageState extends State<NotificationsPage> {
         _notifications = notifications;
         _isLoading = false;
       });
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
+      final needsLogin = classifyLoadError(e) == LoadErrorKind.needsLogin;
       setState(() {
         _isLoading = false;
-        _hasError = true;
+        _needsLogin = needsLogin;
+        _hasError = !needsLogin;
       });
     }
   }
@@ -100,6 +130,37 @@ class _NotificationsPageState extends State<NotificationsPage> {
   Widget _buildBody() {
     if (_isLoading) {
       return const Center(child: AppLoadingIndicator());
+    }
+    if (_needsLogin) {
+      return Center(
+        child: AppEmptyState(
+          icon: Icons.lock_outline,
+          title: 'Inicia sesión para ver tus notificaciones',
+          subtitle: 'Necesitas una cuenta para recibir alertas y actualizaciones.',
+          action: AppButton(
+            label: 'Iniciar sesión',
+            isExpanded: false,
+            onPressed: AuthService.requestLogin,
+          ),
+        ),
+      );
+    }
+    if (_notificationsDisabled) {
+      return Center(
+        child: AppEmptyState(
+          icon: Icons.notifications_off_outlined,
+          title: 'Notificaciones desactivadas',
+          subtitle: 'Actívalas en Configuración para recibir alertas y actualizaciones.',
+          action: AppButton(
+            label: 'Ir a configuración',
+            isExpanded: false,
+            onPressed: () async {
+              await context.push('/profile/settings');
+              _loadNotifications();
+            },
+          ),
+        ),
+      );
     }
     if (_hasError) {
       return Center(

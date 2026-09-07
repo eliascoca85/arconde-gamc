@@ -16,6 +16,7 @@ class MapView extends StatefulWidget {
   final VoidCallback? onToggleExpand;
   final GeoSearchResult? zone;
   final MapController mapController;
+  final VoidCallback? onMapTap;
 
   const MapView({
     super.key,
@@ -26,6 +27,7 @@ class MapView extends StatefulWidget {
     this.onToggleExpand,
     this.zone,
     required this.mapController,
+    this.onMapTap,
   });
 
   @override
@@ -136,6 +138,7 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
           interactive: true,
           zonePolygons: zoneGeometry?.polygons ?? const [],
           zoneLines: zoneGeometry?.lines ?? const [],
+          onMapTap: widget.onMapTap != null ? (_) => widget.onMapTap!() : null,
         ),
         // Zoom controls are rendered by HomePage, above its top-bar
         // Scrollable in the outer Stack, so they win hit-testing over that
@@ -160,4 +163,4 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
   }
 }
 
-const double _bottomControlsOffset = 96;
+const double _bottomControlsOffset = AppSpacing.md;
