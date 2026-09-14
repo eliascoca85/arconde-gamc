@@ -123,7 +123,7 @@ class AppButton extends StatelessWidget {
       onPressed: isLoading ? null : onPressed,
       style: style ??
           FilledButton.styleFrom(
-            backgroundColor: backgroundColor ?? AppColors.secondaryTeal,
+            backgroundColor: backgroundColor ?? AppColors.primary,
             foregroundColor: foregroundColor ?? AppColors.textOnPrimary,
             minimumSize: Size(isExpanded ? double.infinity : 88, 48),
             padding: EdgeInsets.symmetric(
@@ -188,8 +188,8 @@ class AppOutlinedButton extends StatelessWidget {
     return OutlinedButton(
       onPressed: onPressed,
       style: OutlinedButton.styleFrom(
-        foregroundColor: textColor ?? AppColors.secondaryTeal,
-        side: BorderSide(color: borderColor ?? AppColors.secondaryTeal, width: 1.5),
+        foregroundColor: textColor ?? AppColors.primary,
+        side: BorderSide(color: borderColor ?? AppColors.primary, width: 1.5),
         minimumSize: Size(isExpanded ? double.infinity : 88, 48),
         padding: EdgeInsets.symmetric(
           horizontal: AppSpacing.lg,
