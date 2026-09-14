@@ -136,9 +136,9 @@ class _SplashScreen extends StatelessWidget {
       backgroundColor: AppColors.backgroundPrimary,
       body: Center(
         child: Image.asset(
-          'assets/icons/LOGO_GAMC.png',
-          width: 112,
-          height: 112,
+          'assets/icons/LOGO_APLICACION.png',
+          width: 140,
+          height: 140,
           fit: BoxFit.contain,
         ),
       ),
@@ -265,7 +265,7 @@ class _LoginScreenState extends State<_LoginScreen> {
                 TextButton(
                   onPressed: _skip,
                   style: TextButton.styleFrom(
-                    foregroundColor: AppColors.accent,
+                    foregroundColor: AppColors.primary,
                     padding: const EdgeInsets.symmetric(
                       horizontal: AppSpacing.md,
                       vertical: AppSpacing.sm,
@@ -278,9 +278,9 @@ class _LoginScreenState extends State<_LoginScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text('Saltar', style: AppTextStyles.titleMedium.copyWith(color: AppColors.accent)),
+                      Text('Saltar', style: AppTextStyles.titleMedium.copyWith(color: AppColors.primary)),
                       const SizedBox(width: AppSpacing.xs),
-                      Icon(Icons.arrow_forward, size: AppSpacing.iconMd, color: AppColors.accent),
+                      Icon(Icons.arrow_forward, size: AppSpacing.iconMd, color: AppColors.primary),
                     ],
                   ),
                 ).paddingAll(AppSpacing.sm),
@@ -313,21 +313,55 @@ class _LoginScreenState extends State<_LoginScreen> {
   Widget _buildChoice() {
     return Column(
       children: [
-        const SizedBox(height: AppSpacing.lg),
+        const SizedBox(height: AppSpacing.xl),
+        // ── Logo con animación de entrada de 3-4 segundos ────────────────
         Image.asset(
-          'assets/icons/LOGO_GAMC.png',
-          width: 112,
-          height: 112,
+          'assets/icons/LOGO_APLICACION.png',
+          width: 148,
+          height: 148,
           fit: BoxFit.contain,
-        ).animate().fadeIn(duration: 400.ms).scale(),
+        )
+            .animate()
+            .fadeIn(duration: 600.ms, curve: Curves.easeOut)
+            .scale(
+              begin: const Offset(0.4, 0.4),
+              end: const Offset(1.0, 1.0),
+              duration: 900.ms,
+              curve: Curves.elasticOut,
+            )
+            .then(delay: 400.ms)
+            .shimmer(
+              duration: 1200.ms,
+              color: AppColors.primaryLight.withValues(alpha: 0.35),
+            )
+            .then(delay: 200.ms)
+            .scaleXY(
+              begin: 1.0,
+              end: 1.06,
+              duration: 350.ms,
+              curve: Curves.easeInOut,
+            )
+            .then()
+            .scaleXY(
+              begin: 1.06,
+              end: 1.0,
+              duration: 350.ms,
+              curve: Curves.easeInOut,
+            ),
         const SizedBox(height: AppSpacing.lg),
-        Text('Bienvenido a Arconte', style: AppTextStyles.headlineMedium, textAlign: TextAlign.center),
+        Text('Bienvenido a Arconte', style: AppTextStyles.headlineMedium, textAlign: TextAlign.center)
+            .animate(delay: 700.ms)
+            .fadeIn(duration: 500.ms)
+            .slideY(begin: 0.15, end: 0, duration: 500.ms, curve: Curves.easeOut),
         const SizedBox(height: AppSpacing.sm),
         Text(
           'Inicia sesión o crea una cuenta para reportar y seguir incidentes de tu zona',
           style: AppTextStyles.bodyLargeSecondary,
           textAlign: TextAlign.center,
-        ),
+        )
+            .animate(delay: 900.ms)
+            .fadeIn(duration: 500.ms)
+            .slideY(begin: 0.1, end: 0, duration: 500.ms, curve: Curves.easeOut),
         const SizedBox(height: AppSpacing.xxl),
         Row(
           children: [
@@ -353,7 +387,7 @@ class _LoginScreenState extends State<_LoginScreen> {
               ),
             ),
           ],
-        ),
+        ).animate(delay: 1100.ms).fadeIn(duration: 500.ms).slideY(begin: 0.1, end: 0, duration: 500.ms),
         const SizedBox(height: AppSpacing.xl),
       ],
     );
