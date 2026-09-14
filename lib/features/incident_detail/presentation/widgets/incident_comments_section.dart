@@ -29,25 +29,40 @@ class IncidentCommentsSection extends StatelessWidget {
         children: [
           Row(
             children: [
-              const AppIconBadge(
-                icon: Icons.forum_outlined,
-                gradient: AppColors.primaryGradient,
-                size: 36,
-                iconSize: 18,
+              Container(
+                width: 10,
+                height: 10,
+                decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
               ),
               const SizedBox(width: AppSpacing.sm),
-              Text('Comentarios', style: AppTextStyles.titleMedium),
-              const Spacer(),
-              if (visible.isNotEmpty)
-                Text(
-                  '${visible.length}',
-                  style: AppTextStyles.labelSmall.copyWith(color: AppColors.textTertiary),
+              Text('Canal del reporte', style: AppTextStyles.titleMedium),
+              const SizedBox(width: AppSpacing.sm),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppColors.secondaryContainer,
+                  borderRadius: BorderRadius.circular(AppSpacing.borderRadiusFull),
                 ),
+                child: Text(
+                  'EN VIVO',
+                  style: AppTextStyles.labelSmall.copyWith(
+                    color: AppColors.secondaryDark,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '${visible.length} mensajes',
+                style: AppTextStyles.labelSmall.copyWith(color: AppColors.textTertiary),
+              ),
             ],
           ),
-          const SizedBox(height: AppSpacing.md),
+          const SizedBox(height: AppSpacing.xs),
+          Text('Actualizaciones y coordinación sobre este reporte', style: AppTextStyles.bodySmallSecondary),
+          const SizedBox(height: AppSpacing.lg),
           if (visible.isEmpty)
-            Text('Sé el primero en comentar sobre este suceso.', style: AppTextStyles.bodySmallSecondary)
+            _buildEmptyChannel()
           else
             ...visible.map(_buildComment),
           const SizedBox(height: AppSpacing.sm),
@@ -62,7 +77,7 @@ class IncidentCommentsSection extends StatelessWidget {
                   textCapitalization: TextCapitalization.sentences,
                   style: AppTextStyles.bodyMedium,
                   decoration: InputDecoration(
-                    hintText: 'Escribe un comentario...',
+                    hintText: 'Escribe un mensaje al canal...',
                     hintStyle: AppTextStyles.bodySmallSecondary,
                     filled: true,
                     fillColor: AppColors.surfaceSecondary,
@@ -80,7 +95,7 @@ class IncidentCommentsSection extends StatelessWidget {
               const SizedBox(width: AppSpacing.sm),
               Container(
                 decoration: BoxDecoration(
-                  color: AppColors.primaryBlue,
+                  color: AppColors.primary,
                   shape: BoxShape.circle,
                 ),
                 child: IconButton(
@@ -103,6 +118,7 @@ class IncidentCommentsSection extends StatelessWidget {
 
   Widget _buildComment(EmergencyMessageDto message) {
     final isCitizen = message.senderRole == 'CITIZEN';
+    final senderColor = isCitizen ? AppColors.primary : AppColors.secondaryDark;
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.md),
       child: Row(
@@ -110,39 +126,70 @@ class IncidentCommentsSection extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 16,
-            backgroundColor: isCitizen
-                ? AppColors.primaryBlue.withValues(alpha: 0.15)
-                : AppColors.secondaryTeal.withValues(alpha: 0.15),
+            backgroundColor: isCitizen ? AppColors.primaryContainer : AppColors.secondaryContainer,
             child: Icon(
-              isCitizen ? Icons.person : Icons.local_police_outlined,
+              isCitizen ? Icons.person_outline : Icons.shield_outlined,
               size: 16,
-              color: isCitizen ? AppColors.primaryBlue : AppColors.secondaryTeal,
+              color: senderColor,
             ),
           ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        message.senderName,
-                        style: AppTextStyles.labelMedium,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.xs),
-                    Text(
-                      Formatters.formatRelativeTime(message.createdAt),
-                      style: AppTextStyles.bodySmallTertiary,
-                    ),
-                  ],
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+              decoration: BoxDecoration(
+                color: isCitizen ? AppColors.surfaceSecondary : AppColors.secondaryContainer,
+                border: Border.all(color: isCitizen ? AppColors.borderPrimary : AppColors.secondary),
+                borderRadius: const BorderRadius.only(
+                  topRight: Radius.circular(AppSpacing.borderRadiusMd),
+                  bottomLeft: Radius.circular(AppSpacing.borderRadiusMd),
+                  bottomRight: Radius.circular(AppSpacing.borderRadiusMd),
                 ),
-                const SizedBox(height: 2),
-                Text(message.message, style: AppTextStyles.bodySmall),
-              ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          message.senderName,
+                          style: AppTextStyles.labelMedium.copyWith(color: senderColor, fontWeight: FontWeight.w700),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(Formatters.formatRelativeTime(message.createdAt), style: AppTextStyles.bodySmallTertiary),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(message.message, style: AppTextStyles.bodySmall),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyChannel() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: AppColors.backgroundSecondary,
+        border: Border.all(color: AppColors.borderPrimary),
+        borderRadius: BorderRadius.circular(AppSpacing.borderRadiusMd),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.bolt_outlined, color: AppColors.secondaryDark),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              'El canal está listo. Envía el primer mensaje para iniciar la coordinación.',
+              style: AppTextStyles.bodySmall,
             ),
           ),
         ],
