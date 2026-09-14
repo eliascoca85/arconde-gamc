@@ -3,13 +3,13 @@ import 'package:flutter/material.dart';
 class AppColors {
   // ── Backgrounds ──────────────────────────────────────────────────────────
   static const Color background          = Color(0xFFFFFFFF);
-  static const Color backgroundSecondary = Color(0xFFFFF9D6);
-  static const Color backgroundTertiary  = Color(0xFFFFF0A8);
+  static const Color backgroundSecondary = Color(0xFFFAFAFA);
+  static const Color backgroundTertiary  = Color(0xFFF5F5F5);
 
   // ── Surfaces ──────────────────────────────────────────────────────────────
   static const Color surfacePrimary   = Color(0xFFFFFFFF);
-  static const Color surfaceSecondary = Color(0xFFFFF9E6);
-  static const Color surfaceTertiary  = Color(0xFFFFF0B3);
+  static const Color surfaceSecondary = Color(0xFFF5F5F5);
+  static const Color surfaceTertiary  = Color(0xFFEEEEEE);
   static const Color surfaceElevated  = Color(0xFFFFFFFF);
 
   // ── Primary – Rojo principal ──────────────────────────────────────────────
@@ -19,12 +19,12 @@ class AppColors {
   static const Color primaryContainer     = Color(0xFFFFEBEE); // Fondo rojo muy suave
   static const Color primaryContainerDark = Color(0xFFFFCDD2); // Fondo rojo suave
 
-  // ── Secondary – Amarillo de apoyo ─────────────────────────────────────────
-  static const Color secondary              = Color(0xFFF4C400);
-  static const Color secondaryLight         = Color(0xFFFFD84D);
-  static const Color secondaryDark          = Color(0xFF9A7900);
-  static const Color secondaryContainer     = Color(0xFFFFF4BF);
-  static const Color secondaryContainerDark = Color(0xFFFFE98A);
+  // ── Secondary – Gris neutro (acento sobre blanco) ─────────────────────────
+  static const Color secondary              = Color(0xFF757575);
+  static const Color secondaryLight         = Color(0xFF9E9E9E);
+  static const Color secondaryDark          = Color(0xFF424242);
+  static const Color secondaryContainer     = Color(0xFFF5F5F5);
+  static const Color secondaryContainerDark = Color(0xFFEEEEEE);
 
   // ── Accent – Rojo más suave ───────────────────────────────────────────────
   static const Color accent              = Color(0xFFC62828);
@@ -41,16 +41,16 @@ class AppColors {
 
   // ── Textos ────────────────────────────────────────────────────────────────
   static const Color textPrimary   = Color(0xFF1A1A1A); // Negro muy suave
-  static const Color textSecondary = Color(0xFF3D3200); // Amarillo oscuro legible
-  static const Color textTertiary  = Color(0xFF806600); // Amarillo apagado
-  static const Color textDisabled  = Color(0xFFC7A900);
+  static const Color textSecondary = Color(0xFF5A5A5A); // Gris medio
+  static const Color textTertiary  = Color(0xFF9E9E9E); // Gris claro
+  static const Color textDisabled  = Color(0xFFBDBDBD);
   static const Color textOnPrimary = Color(0xFFFFFFFF); // Blanco sobre rojo
   static const Color textOnSurface = Color(0xFF1A1A1A);
   static const Color textOnAccent  = Color(0xFFFFFFFF);
 
   // ── Bordes ────────────────────────────────────────────────────────────────
-  static const Color borderPrimary   = Color(0xFFF0D24A);
-  static const Color borderSecondary = Color(0xFFD9B400);
+  static const Color borderPrimary   = Color(0xFFE0E0E0);
+  static const Color borderSecondary = Color(0xFFBDBDBD);
   static const Color borderFocus     = Color(0xFFD32F2F);
 
   // ── Sombras y overlays ────────────────────────────────────────────────────
@@ -78,7 +78,7 @@ class AppColors {
   static const Color error   = Color(0xFFD32F2F);
   static const Color info    = Color(0xFF1565C0);
 
-  static const Color divider = Color(0xFFF0D24A);
+  static const Color divider = Color(0xFFE0E0E0);
 
   static const Color white = Color(0xFFFFFFFF);
   static const Color black = Color(0xFF000000);
