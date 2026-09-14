@@ -1,0 +1,1 @@
+export 'incident_detail_page.dart';
