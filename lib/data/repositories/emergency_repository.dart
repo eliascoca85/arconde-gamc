@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:dio/dio.dart';
 import '../../core/network/api_client.dart';
@@ -178,6 +180,48 @@ class EmergencyRepository {
       data: {'message': message},
     );
     return EmergencyMessageDto.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  /// Se conecta al canal SSE del chat de esta emergencia y emite una señal
+  /// (el valor no importa) cada vez que llega un mensaje nuevo, para que el
+  /// consumidor vuelva a pedir la lista completa con [listMessages]. Si la
+  /// conexión falla o se corta, reintenta sola cada pocos segundos hasta que
+  /// el `StreamSubscription` resultante se cancele.
+  Stream<void> watchMessages(int emergencyId) async* {
+    while (true) {
+      try {
+        final response = await _dio.get<ResponseBody>(
+          '/api/citizen/emergencies/$emergencyId/realtime',
+          options: Options(
+            responseType: ResponseType.stream,
+            receiveTimeout: Duration.zero,
+          ),
+        );
+
+        var buffer = '';
+        await for (final chunk in response.data!.stream) {
+          buffer += utf8.decode(chunk, allowMalformed: true);
+          while (true) {
+            final separatorIndex = buffer.indexOf('\n\n');
+            if (separatorIndex == -1) break;
+            final frame = buffer.substring(0, separatorIndex);
+            buffer = buffer.substring(separatorIndex + 2);
+
+            final dataLine = frame
+                .split('\n')
+                .firstWhere((line) => line.startsWith('data: '), orElse: () => '');
+            if (dataLine.isEmpty) continue;
+
+            final json = jsonDecode(dataLine.substring(6)) as Map<String, dynamic>;
+            if (json['topic'] == 'connection') continue;
+            yield null;
+          }
+        }
+      } catch (_) {
+        // Se ignora: el chat sigue usable sin en vivo hasta que reconecte.
+      }
+      await Future.delayed(const Duration(seconds: 3));
+    }
   }
 
   Future<List<EvidenceDto>> listEvidence(int emergencyId) async {

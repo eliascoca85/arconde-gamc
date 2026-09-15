@@ -462,7 +462,7 @@ class _LoginScreenState extends State<_LoginScreen> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.secondaryTeal : Colors.transparent,
+          color: isSelected ? AppColors.highlightYellow : Colors.transparent,
           borderRadius: BorderRadius.circular(AppSpacing.borderRadiusSm),
         ),
         child: Row(

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -41,6 +42,7 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
   final List<EvidenceDto> _evidences = [];
   bool _isSendingComment = false;
   bool _isUploadingEvidence = false;
+  StreamSubscription<void>? _messagesWatchSub;
 
   @override
   void initState() {
@@ -50,6 +52,7 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
 
   @override
   void dispose() {
+    _messagesWatchSub?.cancel();
     _commentController.dispose();
     super.dispose();
   }
@@ -81,6 +84,8 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
       }
       _loadMessages(id);
       _loadEvidence(id);
+      _messagesWatchSub?.cancel();
+      _messagesWatchSub = _emergencyRepository.watchMessages(id).listen((_) => _loadMessages(id));
     } catch (_) {
       if (!mounted) return;
       setState(() {

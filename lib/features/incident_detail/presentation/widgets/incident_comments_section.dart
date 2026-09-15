@@ -4,7 +4,7 @@ import '../../../../../core/utils/formatters.dart';
 import '../../../../../data/dtos/emergency_message_dto.dart';
 import '../../../../../shared/widgets/basic_widgets.dart';
 
-class IncidentCommentsSection extends StatelessWidget {
+class IncidentCommentsSection extends StatefulWidget {
   final List<EmergencyMessageDto> messages;
   final TextEditingController controller;
   final bool isSending;
@@ -19,8 +19,46 @@ class IncidentCommentsSection extends StatelessWidget {
   });
 
   @override
+  State<IncidentCommentsSection> createState() => _IncidentCommentsSectionState();
+}
+
+class _IncidentCommentsSectionState extends State<IncidentCommentsSection> {
+  final _scrollController = ScrollController();
+
+  List<EmergencyMessageDto> get _visible =>
+      widget.messages.where((m) => m.message.trim().isNotEmpty).toList();
+
+  @override
+  void didUpdateWidget(covariant IncidentCommentsSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.messages.length != oldWidget.messages.length) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToBottom() {
+    if (!_scrollController.hasClients) return;
+    _scrollController.animateTo(
+      _scrollController.position.maxScrollExtent,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  void _handleSend() {
+    widget.onSend();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final visible = messages.where((m) => m.message.trim().isNotEmpty).toList();
+    final visible = _visible;
 
     return AppCard(
       padding: const EdgeInsets.all(AppSpacing.md),
@@ -37,6 +75,22 @@ class IncidentCommentsSection extends StatelessWidget {
               ),
               const SizedBox(width: AppSpacing.sm),
               Text('Comentarios', style: AppTextStyles.titleMedium),
+              const SizedBox(width: AppSpacing.xs),
+              if (visible.isNotEmpty) ...[
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: const BoxDecoration(
+                    color: AppColors.resolvedGreen,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'en vivo',
+                  style: AppTextStyles.labelSmall.copyWith(color: AppColors.resolvedGreen),
+                ),
+              ],
               const Spacer(),
               if (visible.isNotEmpty)
                 Text(
@@ -49,14 +103,27 @@ class IncidentCommentsSection extends StatelessWidget {
           if (visible.isEmpty)
             Text('Sé el primero en comentar sobre este suceso.', style: AppTextStyles.bodySmallSecondary)
           else
-            ...visible.map(_buildComment),
+            Container(
+              constraints: const BoxConstraints(maxHeight: 340),
+              decoration: BoxDecoration(
+                color: AppColors.backgroundTertiary,
+                borderRadius: BorderRadius.circular(AppSpacing.borderRadiusMd),
+              ),
+              child: ListView.builder(
+                controller: _scrollController,
+                shrinkWrap: true,
+                padding: const EdgeInsets.all(AppSpacing.sm),
+                itemCount: visible.length,
+                itemBuilder: (context, index) => _buildBubble(visible[index]),
+              ),
+            ),
           const SizedBox(height: AppSpacing.sm),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Expanded(
                 child: TextField(
-                  controller: controller,
+                  controller: widget.controller,
                   minLines: 1,
                   maxLines: 4,
                   textCapitalization: TextCapitalization.sentences,
@@ -84,8 +151,8 @@ class IncidentCommentsSection extends StatelessWidget {
                   shape: BoxShape.circle,
                 ),
                 child: IconButton(
-                  onPressed: isSending ? null : onSend,
-                  icon: isSending
+                  onPressed: widget.isSending ? null : _handleSend,
+                  icon: widget.isSending
                       ? const SizedBox(
                           width: AppSpacing.iconSm,
                           height: AppSpacing.iconSm,
@@ -101,49 +168,70 @@ class IncidentCommentsSection extends StatelessWidget {
     );
   }
 
-  Widget _buildComment(EmergencyMessageDto message) {
+  Widget _buildBubble(EmergencyMessageDto message) {
     final isCitizen = message.senderRole == 'CITIZEN';
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.md),
-      child: Row(
+
+    final bubble = Container(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: isCitizen ? AppColors.primaryBlue : AppColors.surfacePrimary,
+        borderRadius: BorderRadius.only(
+          topLeft: const Radius.circular(AppSpacing.borderRadiusLg),
+          topRight: const Radius.circular(AppSpacing.borderRadiusLg),
+          bottomLeft: Radius.circular(isCitizen ? AppSpacing.borderRadiusLg : 2),
+          bottomRight: Radius.circular(isCitizen ? 2 : AppSpacing.borderRadiusLg),
+        ),
+        border: isCitizen ? null : Border.all(color: AppColors.borderPrimary, width: 0.5),
+      ),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          CircleAvatar(
-            radius: 16,
-            backgroundColor: isCitizen
-                ? AppColors.primaryBlue.withValues(alpha: 0.15)
-                : AppColors.secondaryTeal.withValues(alpha: 0.15),
-            child: Icon(
-              isCitizen ? Icons.person : Icons.local_police_outlined,
-              size: 16,
-              color: isCitizen ? AppColors.primaryBlue : AppColors.secondaryTeal,
+          if (!isCitizen)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 2),
+              child: Text(
+                message.senderName,
+                style: AppTextStyles.labelSmall.copyWith(
+                  color: AppColors.secondaryTeal,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          Text(
+            message.message,
+            style: AppTextStyles.bodySmall.copyWith(
+              color: isCitizen ? AppColors.textOnPrimary : AppColors.textPrimary,
             ),
           ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        message.senderName,
-                        style: AppTextStyles.labelMedium,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.xs),
-                    Text(
-                      Formatters.formatRelativeTime(message.createdAt),
-                      style: AppTextStyles.bodySmallTertiary,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Text(message.message, style: AppTextStyles.bodySmall),
-              ],
+          const SizedBox(height: 2),
+          Text(
+            Formatters.formatRelativeTime(message.createdAt),
+            style: AppTextStyles.bodySmallTertiary.copyWith(
+              color: isCitizen ? AppColors.textOnPrimary.withValues(alpha: 0.7) : AppColors.textTertiary,
             ),
+          ),
+        ],
+      ),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: isCitizen ? MainAxisAlignment.end : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (!isCitizen) ...[
+            CircleAvatar(
+              radius: 12,
+              backgroundColor: AppColors.secondaryTeal.withValues(alpha: 0.15),
+              child: const Icon(Icons.local_police_outlined, size: 12, color: AppColors.secondaryTeal),
+            ),
+            const SizedBox(width: 6),
+          ],
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
+            child: bubble,
           ),
         ],
       ),

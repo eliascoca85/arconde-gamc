@@ -49,3 +49,6 @@ app.*.map.json
 
 # Local API keys injected via --dart-define-from-file (see env.json.example)
 env.json
+
+# Internal API/testing reference — contains local seed-user test credentials
+API_CONTEXT.md

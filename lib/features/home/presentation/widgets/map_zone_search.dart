@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+
 import '../../../../app/theme/index.dart';
 import '../../../../core/network/nominatim_service.dart';
 
@@ -19,6 +20,7 @@ class MapZoneSearchField extends StatefulWidget {
   final ValueChanged<GeoSearchResult> onZoneSelected;
   final VoidCallback onZoneCleared;
   final VoidCallback? onFilterPressed;
+  final Key? tourKey;
 
   const MapZoneSearchField({
     super.key,
@@ -27,6 +29,7 @@ class MapZoneSearchField extends StatefulWidget {
     this.selectedZone,
     this.filteredCount,
     this.onFilterPressed,
+    this.tourKey,
   });
 
   @override
@@ -69,7 +72,10 @@ class _MapZoneSearchFieldState extends State<MapZoneSearchField> {
 
     setState(() => _status = _SearchStatus.loading);
     _syncOverlay();
-    _debounce = Timer(const Duration(milliseconds: 450), () => _runSearch(query));
+    _debounce = Timer(
+      const Duration(milliseconds: 450),
+      () => _runSearch(query),
+    );
   }
 
   Future<void> _runSearch(String query) async {
@@ -132,7 +138,9 @@ class _MapZoneSearchFieldState extends State<MapZoneSearchField> {
   void _editZone() {
     widget.onZoneCleared();
     setState(() {});
-    WidgetsBinding.instance.addPostFrameCallback((_) => _focusNode.requestFocus());
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _focusNode.requestFocus(),
+    );
   }
 
   @override
@@ -190,59 +198,78 @@ class _MapZoneSearchFieldState extends State<MapZoneSearchField> {
   }
 
   Widget _buildSearchInput() {
-    return Container(
-      margin: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: AppColors.surfacePrimary,
-        borderRadius: BorderRadius.circular(AppSpacing.borderRadiusLg),
-        border: Border.all(color: AppColors.borderPrimary, width: 0.5),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.shadowColor,
-            blurRadius: AppSpacing.elevationMd,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: TextField(
-        controller: _controller,
-        focusNode: _focusNode,
-        onChanged: _onQueryChanged,
-        style: AppTextStyles.bodyMedium,
-        decoration: InputDecoration(
-          hintText: 'Buscar zona o dirección',
-          hintStyle: AppTextStyles.bodyMedium.copyWith(color: AppColors.textDisabled),
-          prefixIcon: Icon(Icons.search, color: AppColors.textTertiary, size: AppSpacing.iconMd),
-          suffixIcon: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (_status == _SearchStatus.loading)
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-                  child: SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.secondaryTeal),
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Container(
+        key: widget.tourKey,
+        decoration: BoxDecoration(
+          color: AppColors.surfacePrimary,
+          borderRadius: BorderRadius.circular(AppSpacing.borderRadiusLg),
+          border: Border.all(color: AppColors.borderSecondary, width: 0.5),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.shadowColor,
+              blurRadius: AppSpacing.elevationMd,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: TextField(
+          controller: _controller,
+          focusNode: _focusNode,
+          onChanged: _onQueryChanged,
+          style: AppTextStyles.bodyMedium,
+          decoration: InputDecoration(
+            hintText: 'Buscar zona o dirección',
+            hintStyle: AppTextStyles.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
+            prefixIcon: Icon(
+              Icons.search,
+              color: AppColors.textSecondary,
+              size: AppSpacing.iconMd,
+            ),
+            suffixIcon: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_status == _SearchStatus.loading)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+                    child: SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          AppColors.secondaryTeal,
+                        ),
+                      ),
                     ),
+                  )
+                else if (_controller.text.isNotEmpty)
+                  IconButton(
+                    icon: Icon(
+                      Icons.close,
+                      color: AppColors.textSecondary,
+                      size: AppSpacing.iconSm,
+                    ),
+                    onPressed: _clearQuery,
                   ),
-                )
-              else if (_controller.text.isNotEmpty)
                 IconButton(
-                  icon: Icon(Icons.close, color: AppColors.textTertiary, size: AppSpacing.iconSm),
-                  onPressed: _clearQuery,
+                  icon: Icon(
+                    Icons.tune,
+                    color: AppColors.textSecondary,
+                    size: AppSpacing.iconMd,
+                  ),
+                  onPressed: widget.onFilterPressed,
                 ),
-              IconButton(
-                icon: Icon(Icons.tune, color: AppColors.textTertiary, size: AppSpacing.iconMd),
-                onPressed: widget.onFilterPressed,
-              ),
-            ],
-          ),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md,
-            vertical: AppSpacing.md,
+              ],
+            ),
+            border: InputBorder.none,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.md,
+            ),
           ),
         ),
       ),
@@ -251,7 +278,12 @@ class _MapZoneSearchFieldState extends State<MapZoneSearchField> {
 
   Widget _buildDropdown() {
     return Container(
-      margin: const EdgeInsets.fromLTRB(AppSpacing.md, 0, AppSpacing.md, AppSpacing.md),
+      margin: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        0,
+        AppSpacing.md,
+        AppSpacing.md,
+      ),
       constraints: const BoxConstraints(maxHeight: 320),
       decoration: BoxDecoration(
         color: AppColors.surfacePrimary,
@@ -276,13 +308,20 @@ class _MapZoneSearchFieldState extends State<MapZoneSearchField> {
           shrinkWrap: true,
           padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
           itemCount: _results.length,
-          separatorBuilder: (_, _) => const Divider(height: 1, color: AppColors.divider),
+          separatorBuilder: (_, _) =>
+              const Divider(height: 1, color: AppColors.divider),
           itemBuilder: (context, index) => _buildResultTile(_results[index]),
         );
       case _SearchStatus.empty:
-        return _buildDropdownMessage(Icons.search_off, 'No encontramos esa zona.');
+        return _buildDropdownMessage(
+          Icons.search_off,
+          'No encontramos esa zona.',
+        );
       case _SearchStatus.error:
-        return _buildDropdownMessage(Icons.wifi_off, 'No se pudo realizar la búsqueda. Intenta nuevamente.');
+        return _buildDropdownMessage(
+          Icons.wifi_off,
+          'No se pudo realizar la búsqueda. Intenta nuevamente.',
+        );
       case _SearchStatus.loading:
       case _SearchStatus.idle:
         return const SizedBox.shrink();
@@ -291,7 +330,10 @@ class _MapZoneSearchFieldState extends State<MapZoneSearchField> {
 
   Widget _buildDropdownMessage(IconData icon, String message) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.lg),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.lg,
+      ),
       child: Row(
         children: [
           Icon(icon, size: AppSpacing.iconMd, color: AppColors.textTertiary),
@@ -314,7 +356,10 @@ class _MapZoneSearchFieldState extends State<MapZoneSearchField> {
     return InkWell(
       onTap: () => _selectResult(result),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -326,7 +371,9 @@ class _MapZoneSearchFieldState extends State<MapZoneSearchField> {
                 children: [
                   Text(
                     result.primaryLabel,
-                    style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w600),
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -352,56 +399,74 @@ class _MapZoneSearchFieldState extends State<MapZoneSearchField> {
     // Only an area result actually filters incidents — showing a count for
     // a street/place selection would imply filtering that never happened.
     final count = zone.kind == GeoResultKind.area ? widget.filteredCount : null;
-    return Container(
-      margin: const EdgeInsets.all(AppSpacing.md),
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
-      decoration: BoxDecoration(
-        color: AppColors.surfacePrimary,
-        borderRadius: BorderRadius.circular(AppSpacing.borderRadiusLg),
-        border: Border.all(color: AppColors.secondaryTeal, width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.shadowColor,
-            blurRadius: AppSpacing.elevationMd,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: InkWell(
-        onTap: _editZone,
-        borderRadius: BorderRadius.circular(AppSpacing.borderRadiusLg),
-        child: Row(
-          children: [
-            Icon(Icons.place, color: AppColors.secondaryTeal, size: AppSpacing.iconMd),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    zone.primaryLabel,
-                    style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w600),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (count != null)
-                    Text(
-                      '$count ${count == 1 ? 'reporte encontrado' : 'reportes encontrados'}',
-                      style: AppTextStyles.bodySmallSecondary,
-                    ),
-                ],
-              ),
-            ),
-            InkWell(
-              onTap: _clearZone,
-              borderRadius: BorderRadius.circular(AppSpacing.borderRadiusFull),
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.xs),
-                child: Icon(Icons.close, color: AppColors.textTertiary, size: AppSpacing.iconSm),
-              ),
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Container(
+        key: widget.tourKey,
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
+        decoration: BoxDecoration(
+          color: AppColors.surfacePrimary,
+          borderRadius: BorderRadius.circular(AppSpacing.borderRadiusLg),
+          border: Border.all(color: AppColors.borderSecondary, width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.shadowColor,
+              blurRadius: AppSpacing.elevationMd,
+              offset: const Offset(0, 4),
             ),
           ],
+        ),
+        child: InkWell(
+          onTap: _editZone,
+          borderRadius: BorderRadius.circular(AppSpacing.borderRadiusLg),
+          child: Row(
+            children: [
+              Icon(
+                Icons.place,
+                color: AppColors.textSecondary,
+                size: AppSpacing.iconMd,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      zone.primaryLabel,
+                      style: AppTextStyles.bodyMedium.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (count != null)
+                      Text(
+                        '$count ${count == 1 ? 'reporte encontrado' : 'reportes encontrados'}',
+                        style: AppTextStyles.bodySmallSecondary,
+                      ),
+                  ],
+                ),
+              ),
+              InkWell(
+                onTap: _clearZone,
+                borderRadius: BorderRadius.circular(
+                  AppSpacing.borderRadiusFull,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.xs),
+                  child: Icon(
+                    Icons.close,
+                    color: AppColors.textTertiary,
+                    size: AppSpacing.iconSm,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.1, end: 0);

@@ -26,6 +26,16 @@ class AppColors {
   static const Color secondaryContainer     = Color(0xFFF5F5F5);
   static const Color secondaryContainerDark = Color(0xFFEEEEEE);
 
+  // ── Amarillo dedicado (insignia incidentes, FAB ubicación, toggle login) ──
+  static const Color highlightYellow      = Color(0xFFF4C400);
+  static const Color highlightYellowLight = Color(0xFFFFD84D);
+
+  static const LinearGradient highlightYellowGradient = LinearGradient(
+    colors: [highlightYellow, highlightYellowLight],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
   // ── Accent – Rojo más suave ───────────────────────────────────────────────
   static const Color accent              = Color(0xFFC62828);
   static const Color accentLight         = Color(0xFFE57373);

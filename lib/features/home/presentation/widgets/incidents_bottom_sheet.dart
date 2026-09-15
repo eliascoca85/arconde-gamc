@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../../app/theme/index.dart';
 import '../../../../../core/animations/motion.dart';
 import '../../../../../shared/components/incident_card.dart';
@@ -15,6 +16,7 @@ Widget _buildCollapsibleHeader({
   required Gradient gradient,
   required String title,
   required String subtitle,
+  Key? iconKey,
 }) {
   return Padding(
     padding: const EdgeInsets.all(AppSpacing.md),
@@ -26,8 +28,14 @@ Widget _buildCollapsibleHeader({
         mainAxisSize: expanded ? MainAxisSize.max : MainAxisSize.min,
         children: [
           Pressable(
+            key: iconKey,
             onTap: onToggle,
-            child: AppIconBadge(icon: icon, gradient: gradient, size: 36, iconSize: 18),
+            child: AppIconBadge(
+              icon: icon,
+              gradient: gradient,
+              size: 36,
+              iconSize: 18,
+            ),
           ),
           if (expanded) ...[
             const SizedBox(width: AppSpacing.md),
@@ -49,7 +57,12 @@ Widget _buildCollapsibleHeader({
 
 Widget _buildIncidentsEmptyState(String message) {
   return Padding(
-    padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.md),
+    padding: const EdgeInsets.fromLTRB(
+      AppSpacing.md,
+      AppSpacing.sm,
+      AppSpacing.md,
+      AppSpacing.md,
+    ),
     child: Row(
       children: [
         Container(
@@ -58,7 +71,11 @@ Widget _buildIncidentsEmptyState(String message) {
             color: AppColors.resolvedGreen.withValues(alpha: 0.15),
             shape: BoxShape.circle,
           ),
-          child: Icon(Icons.check_circle_outline, size: AppSpacing.iconMd, color: AppColors.resolvedGreen),
+          child: Icon(
+            Icons.check_circle_outline,
+            size: AppSpacing.iconMd,
+            color: AppColors.resolvedGreen,
+          ),
         ),
         const SizedBox(width: AppSpacing.md),
         Expanded(
@@ -79,6 +96,7 @@ class NearbyIncidentsCard extends StatelessWidget {
   final Function(Incident) onIncidentTap;
   final bool expanded;
   final VoidCallback onToggleExpanded;
+  final Key? iconKey;
 
   const NearbyIncidentsCard({
     super.key,
@@ -86,6 +104,7 @@ class NearbyIncidentsCard extends StatelessWidget {
     required this.onIncidentTap,
     required this.expanded,
     required this.onToggleExpanded,
+    this.iconKey,
   });
 
   @override
@@ -109,6 +128,7 @@ class NearbyIncidentsCard extends StatelessWidget {
             gradient: AppColors.primaryGradient,
             title: 'Incidentes cerca de ti',
             subtitle: '${nearbyIncidents.length} incidentes cercanos',
+            iconKey: iconKey,
           ),
           AnimatedSize(
             duration: const Duration(milliseconds: 280),
@@ -118,7 +138,9 @@ class NearbyIncidentsCard extends StatelessWidget {
                 ? Padding(
                     padding: const EdgeInsets.only(bottom: AppSpacing.md),
                     child: nearbyIncidents.isEmpty
-                        ? _buildIncidentsEmptyState('Todo tranquilo por tu zona, sin incidentes cercanos')
+                        ? _buildIncidentsEmptyState(
+                            'Todo tranquilo por tu zona, sin incidentes cercanos',
+                          )
                         : _buildIncidentsList(nearbyIncidents),
                   )
                 : const SizedBox.shrink(),
@@ -162,6 +184,7 @@ class AllIncidentsCard extends StatelessWidget {
   final Function(Incident) onIncidentTap;
   final bool expanded;
   final VoidCallback onToggleExpanded;
+  final Key? iconKey;
 
   const AllIncidentsCard({
     super.key,
@@ -169,6 +192,7 @@ class AllIncidentsCard extends StatelessWidget {
     required this.onIncidentTap,
     required this.expanded,
     required this.onToggleExpanded,
+    this.iconKey,
   });
 
   @override
@@ -187,9 +211,10 @@ class AllIncidentsCard extends StatelessWidget {
             expanded: expanded,
             onToggle: onToggleExpanded,
             icon: Icons.list_alt,
-            gradient: AppColors.secondaryGradient,
+            gradient: AppColors.highlightYellowGradient,
             title: 'Todos los incidentes',
             subtitle: '${incidents.length} incidentes en total',
+            iconKey: iconKey,
           ),
           AnimatedSize(
             duration: const Duration(milliseconds: 280),
@@ -199,7 +224,9 @@ class AllIncidentsCard extends StatelessWidget {
                 ? Padding(
                     padding: const EdgeInsets.only(bottom: AppSpacing.md),
                     child: incidents.isEmpty
-                        ? _buildIncidentsEmptyState('No hay incidentes registrados')
+                        ? _buildIncidentsEmptyState(
+                            'No hay incidentes registrados',
+                          )
                         : _buildIncidentsList(incidents),
                   )
                 : const SizedBox.shrink(),

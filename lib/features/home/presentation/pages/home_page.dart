@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
+
 import '../../../../../app/routes/app_router.dart';
 import '../../../../../app/theme/index.dart';
 import '../../../../../core/animations/motion.dart';
@@ -11,12 +12,14 @@ import '../../../../../core/services/location_service.dart';
 import '../../../../../core/services/report_events.dart';
 import '../../../../../core/services/settings_events.dart';
 import '../../../../../core/services/settings_store.dart';
+import '../../../../../core/services/tutorial_store.dart';
 import '../../../../../core/utils/geojson_parser.dart';
 import '../../../../../data/repositories/emergency_repository.dart';
 import '../../../../../mock/models.dart';
 import '../../../../../shared/widgets/app_map.dart';
 import '../../../../../shared/widgets/auth_gate.dart';
 import '../../../../../shared/widgets/basic_widgets.dart';
+import '../../../../../shared/widgets/coach_mark_overlay.dart';
 import '../widgets/map_controls.dart';
 import '../widgets/map_view.dart';
 import '../widgets/incidents_bottom_sheet.dart';
@@ -72,7 +75,18 @@ class _HomePageState extends State<HomePage> {
 
   bool _nearbyIncidentsExpanded = false;
   bool _allIncidentsExpanded = false;
-  bool get _anyIncidentsCardExpanded => _nearbyIncidentsExpanded || _allIncidentsExpanded;
+  bool get _anyIncidentsCardExpanded =>
+      _nearbyIncidentsExpanded || _allIncidentsExpanded;
+
+  // Targets for the first-launch coach mark tour over the main buttons.
+  final _tourSearchKey = GlobalKey();
+  final _tourNearbyIncidentsKey = GlobalKey();
+  final _tourAllIncidentsKey = GlobalKey();
+  final _tourMapNavKey = GlobalKey();
+  final _tourReportsNavKey = GlobalKey();
+  final _tourReportButtonKey = GlobalKey();
+  final _tourNotificationsNavKey = GlobalKey();
+  final _tourProfileNavKey = GlobalKey();
 
   void _toggleNearbyIncidents() {
     setState(() {
@@ -104,6 +118,100 @@ class _HomePageState extends State<HomePage> {
     _loadFavoriteZones();
     ReportEvents.submitted.addListener(_onReportSubmitted);
     SettingsEvents.favoriteZonesChanged.addListener(_loadFavoriteZones);
+    _maybeShowHomeTour();
+  }
+
+  /// Shows a one-time coach mark tour over the main buttons the very first
+  /// time the app is opened. Waits for the initial incidents fetch (so the
+  /// "Incidentes cerca de ti"/"Todos los incidentes" cards, which only
+  /// render once that data loads, are actually on screen to spotlight) plus
+  /// a short extra delay past that so the map/top-bar entrance animations
+  /// settle before we measure target positions.
+  Future<void> _maybeShowHomeTour() async {
+    final alreadySeen = await TutorialStore.hasSeenHomeTour();
+    if (alreadySeen || !mounted) return;
+    try {
+      await _incidentsFuture;
+    } catch (_) {
+      // Incidents failed to load — the two incident-card steps below will
+      // simply skip themselves since their targets won't be on screen.
+    }
+    if (!mounted) return;
+    await Future.delayed(const Duration(milliseconds: 600));
+    if (!mounted) return;
+    await showCoachMarkTour(
+      context,
+      steps: [
+        CoachMarkStep(
+          targetKey: _tourSearchKey,
+          icon: Icons.search,
+          title: 'Busca y filtra',
+          description: 'Busca una zona y filtra qué tipos de incidentes quieres ver en el mapa.',
+          gradient: AppColors.accentGradient,
+          accentColor: AppColors.accent,
+        ),
+        CoachMarkStep(
+          targetKey: _tourNearbyIncidentsKey,
+          icon: Icons.warning_amber_outlined,
+          title: 'Incidentes cerca de ti',
+          description: 'Toca el ícono para expandir y ver los incidentes reportados en tu zona.',
+          gradient: AppColors.primaryGradient,
+          accentColor: AppColors.primary,
+        ),
+        CoachMarkStep(
+          targetKey: _tourAllIncidentsKey,
+          icon: Icons.list_alt,
+          title: 'Todos los incidentes',
+          description: 'Toca el ícono para ver el listado completo de incidentes reportados.',
+          gradient: AppColors.secondaryGradient,
+          accentColor: AppColors.secondary,
+        ),
+        CoachMarkStep(
+          targetKey: _tourMapNavKey,
+          icon: Icons.map,
+          title: 'Mapa',
+          description: 'Aquí verás en tiempo real los incidentes reportados cerca de ti.',
+          gradient: AppColors.moderateGradient,
+          accentColor: AppColors.moderateOrange,
+        ),
+        CoachMarkStep(
+          targetKey: _tourReportsNavKey,
+          icon: Icons.assignment,
+          title: 'Mis reportes',
+          description: 'Revisa el estado y el seguimiento de los reportes que tú enviaste.',
+          gradient: AppColors.accentSoftGradient,
+          accentColor: AppColors.accentSoft,
+        ),
+        CoachMarkStep(
+          targetKey: _tourReportButtonKey,
+          icon: Icons.emergency,
+          title: 'Reportar',
+          description: 'Pulsa este botón para reportar una emergencia, por voz o paso a paso.',
+          gradient: AppColors.urgentGradient,
+          accentColor: AppColors.urgentRed,
+          shape: CoachMarkShape.circle,
+          spotlightPadding: const EdgeInsets.all(6),
+        ),
+        CoachMarkStep(
+          targetKey: _tourNotificationsNavKey,
+          icon: Icons.notifications,
+          title: 'Notificaciones',
+          description:
+              'Recibe alertas sobre tus reportes y novedades cerca de ti.',
+          gradient: AppColors.resolvedGradient,
+          accentColor: AppColors.resolvedGreen,
+        ),
+        CoachMarkStep(
+          targetKey: _tourProfileNavKey,
+          icon: Icons.person,
+          title: 'Perfil',
+          description: 'Gestiona tus datos, zonas favoritas y configuración.',
+          gradient: AppColors.primaryGradientReverse,
+          accentColor: AppColors.primaryDark,
+        ),
+      ],
+    );
+    await TutorialStore.setHomeTourSeen();
   }
 
   @override
@@ -138,7 +246,9 @@ class _HomePageState extends State<HomePage> {
     setState(() => _applyingFavoriteKey = null);
     if (result == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No se pudo aplicar esa zona. Intenta nuevamente.')),
+        const SnackBar(
+          content: Text('No se pudo aplicar esa zona. Intenta nuevamente.'),
+        ),
       );
       return;
     }
@@ -183,12 +293,18 @@ class _HomePageState extends State<HomePage> {
 
   void _onZoomIn() {
     final camera = _mapController.camera;
-    _mapController.move(camera.center, (camera.zoom + 1).clamp(AppMap.minZoom, AppMap.maxZoom));
+    _mapController.move(
+      camera.center,
+      (camera.zoom + 1).clamp(AppMap.minZoom, AppMap.maxZoom),
+    );
   }
 
   void _onZoomOut() {
     final camera = _mapController.camera;
-    _mapController.move(camera.center, (camera.zoom - 1).clamp(AppMap.minZoom, AppMap.maxZoom));
+    _mapController.move(
+      camera.center,
+      (camera.zoom - 1).clamp(AppMap.minZoom, AppMap.maxZoom),
+    );
   }
 
   /// Incidents visible on the map: all of them, or only those inside the
@@ -205,13 +321,18 @@ class _HomePageState extends State<HomePage> {
     Iterable<Incident> filtered = (geometry == null || !geometry.isArea)
         ? incidents
         : incidents.where((incident) {
-            final point = LatLng(incident.location.latitude, incident.location.longitude);
+            final point = LatLng(
+              incident.location.latitude,
+              incident.location.longitude,
+            );
             return isPointInZone(point, geometry);
           });
 
-    filtered = filtered.where((incident) =>
-        (_incidentFilters[incident.status.value] ?? true) &&
-        (_incidentFilters[incident.type.value] ?? true));
+    filtered = filtered.where(
+      (incident) =>
+          (_incidentFilters[incident.status.value] ?? true) &&
+          (_incidentFilters[incident.type.value] ?? true),
+    );
 
     final result = filtered.toList();
 
@@ -242,7 +363,9 @@ class _HomePageState extends State<HomePage> {
       bottomNavigationBar: AnimatedSize(
         duration: const Duration(milliseconds: 250),
         curve: Curves.easeInOut,
-        child: _isMapExpanded ? const SizedBox(width: double.infinity) : _buildBottomNavBar(),
+        child: _isMapExpanded
+            ? const SizedBox(width: double.infinity)
+            : _buildBottomNavBar(),
       ),
     );
   }
@@ -278,7 +401,9 @@ class _HomePageState extends State<HomePage> {
                         child: AnimatedSlide(
                           duration: const Duration(milliseconds: 250),
                           curve: Curves.easeInOut,
-                          offset: _isMapExpanded ? const Offset(0, -0.1) : Offset.zero,
+                          offset: _isMapExpanded
+                              ? const Offset(0, -0.1)
+                              : Offset.zero,
                           child: Align(
                             alignment: Alignment.topCenter,
                             child: ListView(
@@ -312,8 +437,14 @@ class _HomePageState extends State<HomePage> {
                     child: AnimatedPadding(
                       duration: const Duration(milliseconds: 250),
                       curve: Curves.easeInOut,
-                      padding: EdgeInsets.only(top: _topZoomControlsOffset, right: AppSpacing.md),
-                      child: MapZoomControls(onZoomIn: _onZoomIn, onZoomOut: _onZoomOut),
+                      padding: EdgeInsets.only(
+                        top: _topZoomControlsOffset,
+                        right: AppSpacing.md,
+                      ),
+                      child: MapZoomControls(
+                        onZoomIn: _onZoomIn,
+                        onZoomOut: _onZoomOut,
+                      ),
                     ),
                   ),
                 ),
@@ -333,20 +464,23 @@ class _HomePageState extends State<HomePage> {
   static const double _favoriteZoneChipsExtraOffset = 44;
 
   double get _topZoomControlsOffset {
-    final showsFavoriteChips = _selectedZone == null && _favoriteZones.isNotEmpty;
-    return _baseZoomControlsOffset + (showsFavoriteChips ? _favoriteZoneChipsExtraOffset : 0);
+    final showsFavoriteChips =
+        _selectedZone == null && _favoriteZones.isNotEmpty;
+    return _baseZoomControlsOffset +
+        (showsFavoriteChips ? _favoriteZoneChipsExtraOffset : 0);
   }
 
-  Widget _buildTopBar(AsyncSnapshot<List<Incident>> snapshot, List<Incident> incidents) {
+  Widget _buildTopBar(
+    AsyncSnapshot<List<Incident>> snapshot,
+    List<Incident> incidents,
+  ) {
     return Padding(
-      padding: const EdgeInsets.only(
-        top: AppSpacing.sm,
-        bottom: AppSpacing.sm,
-      ),
+      padding: const EdgeInsets.only(top: AppSpacing.sm, bottom: AppSpacing.sm),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           MapZoneSearchField(
+            tourKey: _tourSearchKey,
             selectedZone: _selectedZone,
             filteredCount: _selectedZone == null ? null : incidents.length,
             onZoneSelected: _onZoneSelected,
@@ -378,6 +512,7 @@ class _HomePageState extends State<HomePage> {
             )
           else ...[
             NearbyIncidentsCard(
+              iconKey: _tourNearbyIncidentsKey,
               incidents: incidents,
               onIncidentTap: _onIncidentTap,
               expanded: _nearbyIncidentsExpanded,
@@ -385,6 +520,7 @@ class _HomePageState extends State<HomePage> {
             ),
             const SizedBox(height: AppSpacing.sm),
             AllIncidentsCard(
+              iconKey: _tourAllIncidentsKey,
               incidents: incidents,
               onIncidentTap: _onIncidentTap,
               expanded: _allIncidentsExpanded,
@@ -465,11 +601,43 @@ class _HomePageState extends State<HomePage> {
                 top: false,
                 child: Row(
                   children: [
-                    Expanded(child: _buildNavItem(0, Icons.map_outlined, Icons.map, 'Mapa')),
-                    Expanded(child: _buildNavItem(1, Icons.assignment_outlined, Icons.assignment, 'Mis Reportes')),
+                    Expanded(
+                      child: _buildNavItem(
+                        0,
+                        Icons.map_outlined,
+                        Icons.map,
+                        'Mapa',
+                        tourKey: _tourMapNavKey,
+                      ),
+                    ),
+                    Expanded(
+                      child: _buildNavItem(
+                        1,
+                        Icons.assignment_outlined,
+                        Icons.assignment,
+                        'Mis Reportes',
+                        tourKey: _tourReportsNavKey,
+                      ),
+                    ),
                     SizedBox(width: _centerButtonSize + AppSpacing.sm),
-                    Expanded(child: _buildNavItem(2, Icons.notifications_outlined, Icons.notifications, 'Notificaciones')),
-                    Expanded(child: _buildNavItem(3, Icons.person_outline, Icons.person, 'Perfil')),
+                    Expanded(
+                      child: _buildNavItem(
+                        2,
+                        Icons.notifications_outlined,
+                        Icons.notifications,
+                        'Notificaciones',
+                        tourKey: _tourNotificationsNavKey,
+                      ),
+                    ),
+                    Expanded(
+                      child: _buildNavItem(
+                        3,
+                        Icons.person_outline,
+                        Icons.person,
+                        'Perfil',
+                        tourKey: _tourProfileNavKey,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -486,7 +654,13 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildNavItem(int index, IconData icon, IconData selectedIcon, String label) {
+  Widget _buildNavItem(
+    int index,
+    IconData icon,
+    IconData selectedIcon,
+    String label, {
+    Key? tourKey,
+  }) {
     final isSelected = _currentIndex == index;
     final color = isSelected ? AppColors.primaryDark : AppColors.textTertiary;
     return Pressable(
@@ -498,14 +672,31 @@ class _HomePageState extends State<HomePage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(isSelected ? selectedIcon : icon, color: color, size: AppSpacing.iconMd),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            style: AppTextStyles.labelSmall.copyWith(
-              color: color,
-              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+          // Tight wrapper (hugs just the icon+label) so the coach mark
+          // tour's spotlight frames this specific nav item, not the full
+          // Expanded slot the tappable Pressable above fills.
+          KeyedSubtree(
+            key: tourKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  isSelected ? selectedIcon : icon,
+                  color: color,
+                  size: AppSpacing.iconMd,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  style: AppTextStyles.labelSmall.copyWith(
+                    color: color,
+                    fontWeight: isSelected
+                        ? FontWeight.w600
+                        : FontWeight.normal,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -515,6 +706,7 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildReportNavButton() {
     return Pressable(
+      key: _tourReportButtonKey,
       onTap: _onReportPressed,
       child: Container(
         width: _centerButtonSize,
@@ -532,7 +724,11 @@ class _HomePageState extends State<HomePage> {
             ),
           ],
         ),
-        child: Icon(Icons.emergency_outlined, color: AppColors.textOnPrimary, size: AppSpacing.iconLg),
+        child: Icon(
+          Icons.emergency_outlined,
+          color: AppColors.textOnPrimary,
+          size: AppSpacing.iconLg,
+        ),
       ),
     ).pulseGlow(
       minScale: 1.0,
@@ -548,7 +744,10 @@ class _FilterBottomSheet extends StatefulWidget {
   final Map<String, bool> initialFilters;
   final Function(Map<String, bool>) onFilterChanged;
 
-  const _FilterBottomSheet({required this.initialFilters, required this.onFilterChanged});
+  const _FilterBottomSheet({
+    required this.initialFilters,
+    required this.onFilterChanged,
+  });
 
   @override
   State<_FilterBottomSheet> createState() => _FilterBottomSheetState();
@@ -568,17 +767,24 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
         return Container(
           decoration: BoxDecoration(
             color: AppColors.backgroundPrimary,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(AppSpacing.borderRadiusXl)),
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(AppSpacing.borderRadiusXl),
+            ),
           ),
           child: Column(
             children: [
               Container(
-                margin: const EdgeInsets.only(top: AppSpacing.md, bottom: AppSpacing.sm),
+                margin: const EdgeInsets.only(
+                  top: AppSpacing.md,
+                  bottom: AppSpacing.sm,
+                ),
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
                   color: AppColors.borderSecondary,
-                  borderRadius: BorderRadius.circular(AppSpacing.borderRadiusFull),
+                  borderRadius: BorderRadius.circular(
+                    AppSpacing.borderRadiusFull,
+                  ),
                 ),
               ),
               Padding(
@@ -609,9 +815,21 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
                       spacing: AppSpacing.sm,
                       runSpacing: AppSpacing.sm,
                       children: [
-                        _buildFilterChip('urgente', 'Urgente', AppColors.urgentRed),
-                        _buildFilterChip('moderado', 'Moderado', AppColors.moderateOrange),
-                        _buildFilterChip('resuelto', 'Resuelto', AppColors.resolvedGreen),
+                        _buildFilterChip(
+                          'urgente',
+                          'Urgente',
+                          AppColors.urgentRed,
+                        ),
+                        _buildFilterChip(
+                          'moderado',
+                          'Moderado',
+                          AppColors.moderateOrange,
+                        ),
+                        _buildFilterChip(
+                          'resuelto',
+                          'Resuelto',
+                          AppColors.resolvedGreen,
+                        ),
                       ],
                     ),
                     const SizedBox(height: AppSpacing.xl),
@@ -622,13 +840,41 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
                       runSpacing: AppSpacing.sm,
                       children: [
                         _buildFilterChip('robo', 'Robo', AppColors.urgentRed),
-                        _buildFilterChip('accidente', 'Accidente', AppColors.moderateOrange),
-                        _buildFilterChip('persona_sospechosa', 'Persona sospechosa', AppColors.primaryBlue),
-                        _buildFilterChip('violencia', 'Violencia', AppColors.urgentRed),
-                        _buildFilterChip('incendio', 'Incendio', AppColors.urgentRed),
-                        _buildFilterChip('emergencia_medica', 'Emergencia médica', AppColors.resolvedGreen),
-                        _buildFilterChip('vandalismo', 'Vandalismo', AppColors.moderateOrange),
-                        _buildFilterChip('otro', 'Otro', AppColors.textTertiary),
+                        _buildFilterChip(
+                          'accidente',
+                          'Accidente',
+                          AppColors.moderateOrange,
+                        ),
+                        _buildFilterChip(
+                          'persona_sospechosa',
+                          'Persona sospechosa',
+                          AppColors.primaryBlue,
+                        ),
+                        _buildFilterChip(
+                          'violencia',
+                          'Violencia',
+                          AppColors.urgentRed,
+                        ),
+                        _buildFilterChip(
+                          'incendio',
+                          'Incendio',
+                          AppColors.urgentRed,
+                        ),
+                        _buildFilterChip(
+                          'emergencia_medica',
+                          'Emergencia médica',
+                          AppColors.resolvedGreen,
+                        ),
+                        _buildFilterChip(
+                          'vandalismo',
+                          'Vandalismo',
+                          AppColors.moderateOrange,
+                        ),
+                        _buildFilterChip(
+                          'otro',
+                          'Otro',
+                          AppColors.textTertiary,
+                        ),
                       ],
                     ),
                   ],
@@ -668,8 +914,13 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
         color: isSelected ? color : AppColors.borderPrimary,
         width: isSelected ? 1.5 : 0.5,
       ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.borderRadiusFull)),
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppSpacing.borderRadiusFull),
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
       visualDensity: VisualDensity.compact,
     );
