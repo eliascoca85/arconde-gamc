@@ -138,7 +138,7 @@ class MapActionControls extends StatelessWidget {
           tooltip: 'Mi ubicación',
           onPressed: onLocateMe,
           isLoading: isLocating,
-          gradient: AppColors.secondaryGradient,
+          gradient: AppColors.yellowGradient,
         ),
       ],
     ).animate().fadeIn(duration: 400.ms).slideX(begin: 0.2, end: 0);

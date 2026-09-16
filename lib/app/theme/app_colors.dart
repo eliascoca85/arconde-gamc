@@ -68,6 +68,11 @@ class AppColors {
   static const Color moderateOrangeDark      = Color(0xFFE65100);
   static const Color moderateOrangeContainer = Color(0xFFFFF3E0);
 
+  static const Color warningYellow          = Color(0xFFFFD600);
+  static const Color warningYellowLight     = Color(0xFFFFF59D);
+  static const Color warningYellowDark      = Color(0xFFF57F17);
+  static const Color warningYellowContainer = Color(0xFFFFFDE7);
+
   static const Color resolvedGreen          = Color(0xFF388E3C);
   static const Color resolvedGreenLight     = Color(0xFF66BB6A);
   static const Color resolvedGreenDark      = Color(0xFF1B5E20);
@@ -122,6 +127,12 @@ class AppColors {
 
   static const LinearGradient moderateGradient = LinearGradient(
     colors: [moderateOrange, moderateOrangeLight],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
+  static const LinearGradient yellowGradient = LinearGradient(
+    colors: [warningYellow, warningYellowLight],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );

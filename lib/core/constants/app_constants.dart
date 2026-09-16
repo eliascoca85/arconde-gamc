@@ -1,5 +1,5 @@
 class AppConstants {
-  static const String appName = 'Arconte';
+  static const String appName = 'Mi Llajta';
   static const String appTagline = 'Tu comunidad, tu seguridad';
 
   static const String mockUserId = 'user_001';

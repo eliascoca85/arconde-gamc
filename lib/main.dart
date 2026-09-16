@@ -248,7 +248,19 @@ class _LoginScreenState extends State<_LoginScreen> {
     return Scaffold(
       backgroundColor: AppColors.backgroundPrimary,
       body: SafeArea(
-        child: Column(
+        child: Stack(
+          children: [
+            // Watermark
+            Positioned.fill(
+              child: Opacity(
+                opacity: 0.05,
+                child: Image.asset(
+                  'assets/icons/LOGO_APLICACION.png',
+                  repeat: ImageRepeat.repeat,
+                ),
+              ),
+            ),
+            Column(
           children: [
             Row(
               mainAxisAlignment:
@@ -304,6 +316,21 @@ class _LoginScreenState extends State<_LoginScreen> {
                 },
               ),
             ),
+            // Pequeña imagen en el login, no parece botón
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.md),
+              child: Opacity(
+                opacity: 0.7,
+                child: Image.asset(
+                  'assets/icons/LOGO_APLICACION.png',
+                  width: 32,
+                  height: 32,
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
+          ],
+        ),
           ],
         ),
       ),
@@ -349,7 +376,19 @@ class _LoginScreenState extends State<_LoginScreen> {
               curve: Curves.easeInOut,
             ),
         const SizedBox(height: AppSpacing.lg),
-        Text('Bienvenido a Arconte', style: AppTextStyles.headlineMedium, textAlign: TextAlign.center)
+        RichText(
+          textAlign: TextAlign.center,
+          text: TextSpan(
+            style: AppTextStyles.headlineMedium,
+            children: const [
+              TextSpan(text: 'Bienvenido a '),
+              TextSpan(
+                text: 'Mi Llajta',
+                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black),
+              ),
+            ],
+          ),
+        )
             .animate(delay: 700.ms)
             .fadeIn(duration: 500.ms)
             .slideY(begin: 0.15, end: 0, duration: 500.ms, curve: Curves.easeOut),
